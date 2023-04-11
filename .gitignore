@@ -1,3 +1,4 @@
+dist-newstyle/
 papers/*.aux
 papers/*.bbl
 papers/*.blg

@@ -34,11 +34,13 @@ executable yves
     default-language: Haskell2010
 
 library
-    exposed-modules:  Data.Container
+    exposed-modules:  Data.Container, Data.Core
     build-depends:
       base ^>=4.16.4.0
       , containers
       , unordered-containers
       , hashable
+      , mtl
+      , lens
     hs-source-dirs:   src
     default-language: Haskell2010

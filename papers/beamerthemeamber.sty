@@ -1,0 +1,50 @@
+\definecolor{black amber}{RGB}{10,10,10}
+\definecolor{zambezi}{RGB}{91,91,91}
+\definecolor{white aluminium}{RGB}{173,173,173}
+\definecolor{amber}{RGB}{255,191,0}
+\definecolor{white smoke}{RGB}{245,245,245}
+
+\setbeamercolor{background canvas}{bg = black amber}
+\setbeamercolor{title}{fg = white smoke}
+\setbeamercolor{author}{fg = white aluminium}
+\setbeamercolor{date}{fg = white aluminium}
+\setbeamercolor{section in toc}{fg = white smoke}
+\setbeamercolor{section title}{fg = white smoke}
+\setbeamercolor{frametitle}{fg = white aluminium}
+\setbeamercolor{framesubtitle}{fg = zambezi}
+\setbeamercolor{block title}{fg = amber}
+\setbeamercolor{local structure}{fg = zambezi}
+\setbeamercolor{normal text}{fg = white smoke}
+\setbeamercolor{footnote}{fg = white aluminium}
+\setbeamercolor{footnote mark}{fg = white aluminium}
+
+\renewcommand{\qedsymbol}{{\color{amber} $\square$}}
+
+\setbeamerfont{title}{size = \Huge}
+\setbeamerfont{author}{size = \normalsize}
+\setbeamerfont{date}{size = \small}
+\setbeamerfont{section in toc}{size = \normalsize}
+\setbeamerfont{section title}{size = \Huge}
+\setbeamerfont{frametitle}{size = \normalsize}
+\setbeamerfont{framesubtitle}{size = \small}
+\setbeamerfont{block title}{size = \large}
+
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{title page}{
+  \vspace{2cm}
+  \begin{center}
+    \usebeamerfont{title} \usebeamercolor[fg]{title} \inserttitle
+  \end{center}
+  \vspace{0.1cm}
+  \begin{center}
+    \usebeamerfont{author} \usebeamercolor[fg]{author} \insertauthor
+  \end{center}
+  \vspace{1cm}
+  \begin{center}
+    \usebeamerfont{date} \usebeamercolor[fg]{date} \insertdate
+  \end{center}
+}
+\setbeamertemplate{section page}{
+  \vfill \centering \usebeamerfont{title} \insertsectionhead \vfill
+}
+\setbeamertemplate{itemize items}{$\bullet$}

@@ -1,0 +1,12 @@
+papers/*.aux
+papers/*.bbl
+papers/*.blg
+papers/*.fdb_latexmk
+papers/*.fls
+papers/*.log
+papers/*.nav
+papers/*.out
+papers/*.snm
+papers/*.synctex.gz
+papers/*.toc
+papers/*.vrb

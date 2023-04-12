@@ -1,21 +1,19 @@
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Data.Core where
 
 import Control.Applicative (liftA2)
-import Control.Lens (ASetter', Getting, makePrisms, over, (^?), _1)
+import Control.Lens (Field1, Getting, makePrisms, over, (^?), _1)
 import Control.Monad.Except (MonadError, throwError)
 import Control.Monad.Reader (MonadReader, asks, local)
-import Data.Function (on)
+import Data.Functor.Foldable (cata, embed)
+import Data.Functor.Foldable.TH (makeBaseFunctor)
 import Data.Monoid (First)
-
-tries :: MonadError e m => Getting (First a) s a -> e -> m s -> m a
-tries pr err x = x >>= maybe (throwError err) return . (^? pr)
-
-locals :: MonadReader s m => ASetter' s a -> (a -> a) -> m b -> m b
-locals s = local . over s
 
 infixl 1 :$:
 
@@ -33,54 +31,64 @@ data Term
 
 type Type = Term
 
+makeBaseFunctor ''Term
 makePrisms ''Term
 
 data TypeError = EType | EArrow | EEqual
 
 infer :: (MonadReader [Term] m, MonadError TypeError m) => Term -> m Term
-infer (Type i) = return $ Type (i + 1)
-infer (Var x) = asks (!! x)
-infer (t :->: u) = do
-  i <- tries _Type EType (infer t)
-  j <- tries _Type EType $ local (t :) (infer u)
-  return $ Type (i `max` j)
-infer (t :.: b) = do
-  tries _Type EType (infer t)
-  (t :->:) <$> local (t :) (infer b)
-infer (f :$: x) = do
-  (tx, ty) <- tries (.:->:) EArrow (infer f)
-  check x tx
-  return (ty // x)
+infer = \case
+  Type i -> return $ Type (i + 1)
+  Var x -> asks (!! x)
+  t :->: u -> do
+    i <- infer t >>= level
+    j <- local (t :) (infer u) >>= level
+    return $ Type (i `max` j)
+  t :.: b -> do
+    infer t >>= level
+    (t :->:) <$> local (t :) (infer b)
+  f :$: x -> do
+    (tx, ty) <- infer f >>= domains
+    check x tx
+    return (ty // x)
+  where
+    level :: MonadError TypeError m => Term -> m Int
+    level = tries _Type EType
 
-check :: (MonadReader [Term] m, MonadError TypeError m) => Term -> Term -> m ()
+    domains :: MonadError TypeError m => Term -> m (Term, Term)
+    domains = tries (.:->:) EArrow
+
+    tries :: MonadError e m => Getting (First a) s a -> e -> s -> m a
+    tries pr err = maybe (throwError err) return . (^? pr)
+
+check :: (MonadReader [Term] m, MonadError TypeError m) => Term -> Type -> m ()
 check e t = do
   t' <- infer e
-  if ((==) `on` normalForm) t t'
+  if normalForm t == normalForm t'
     then return ()
     else throwError EEqual
 
 normalForm :: Term -> Term
-normalForm (Type i) = Type i
-normalForm (Var x) = Var x
-normalForm (t :->: u) = normalForm t :->: normalForm u
-normalForm (t :.: b) = normalForm t :.: normalForm b
-normalForm (f :$: x) = case normalForm f of
-  _ :.: b -> normalForm (b // normalForm x)
-  f' -> f' :$: normalForm x
+normalForm = cata $ \case
+  (_ :.: b) :$:$ x -> normalForm (b // x)
+  other -> embed other
 
 (//) :: Term -> Term -> Term
 t // e = shift (sub t (0, shift e (0, 1))) (1, -1)
   where
+    up :: (Field1 s s a a, Enum a, MonadReader s m) => m b -> m b
+    up = local (over _1 succ)
+
     sub :: Term -> (Int, Term) -> Term
-    sub (Type i) = const (Type i)
-    sub (Var y) = \(x, v) -> if x == y then v else Var y
-    sub (t :->: u) = liftA2 (:->:) (sub t) (locals _1 succ $ sub u)
-    sub (t :.: b) = liftA2 (:.:) (sub t) (locals _1 succ $ sub b)
-    sub (f :$: b) = liftA2 (:$:) (sub f) (sub b)
+    sub = cata $ \case
+      VarF y -> \(x, v) -> if x == y then v else Var y
+      t :->:$ u -> liftA2 (:->:) t (up u)
+      t :.:$ b -> liftA2 (:.:) t (up b)
+      other -> embed <$> sequence other
 
     shift :: Term -> (Int, Int) -> Term
-    shift (Type i) = const (Type i)
-    shift (Var y) = Var <$> \(b, d) -> if y >= b then y + d else y
-    shift (t :->: u) = liftA2 (:->:) (shift t) (locals _1 succ $ shift u)
-    shift (t :.: u) = liftA2 (:.:) (shift t) (locals _1 succ $ shift u)
-    shift (f :$: x) = liftA2 (:$:) (shift f) (shift x)
+    shift = cata $ \case
+      VarF y -> Var <$> \(b, d) -> if y >= b then y + d else y
+      t :->:$ u -> liftA2 (:->:) t (up u)
+      t :.:$ b -> liftA2 (:.:) t (up b)
+      other -> embed <$> sequence other

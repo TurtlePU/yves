@@ -36,10 +36,12 @@ executable yves
 library
     exposed-modules:  Data.Container, Data.Core
     build-depends:
-      base ^>=4.16.4.0
+      base ^>=4.17
       , containers
       , unordered-containers
+      , monoidal-containers
       , hashable
+      , composition-prelude
       , mtl
       , lens
       , recursion-schemes

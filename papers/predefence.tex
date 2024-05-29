@@ -1,0 +1,44 @@
+\documentclass{beamer}
+
+\usecolortheme{seahorse}
+\setbeamertemplate{navigation symbols}{}
+
+\usepackage{polyglossia}
+\setmainlanguage{russian}
+\setmainfont{Liberation Serif}
+\setsansfont{Liberation Sans}
+
+\addbibresource{predefence.bib}
+
+\title{Системный язык программирования с зависимыми типами}
+\author{Соколов Павел}
+\date{17 мая 2024}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}{В этом семестре}
+\begin{itemize}
+  \item Оказалось достаточно более простого основания системы типов,
+    чем было заявлено ранее.
+  \item Как и прежде, гарантируется безопасность по памяти
+    (относительно модели с неограниченной памятью).
+  \item Построена система типов, поддерживающая эффективную компиляцию
+    лямбда-выражений и представление (ко-)рекурсивных типов данных и функций.
+  \item Полученная система типов позволяет производить легковесный контроль
+    сайд-эффектов.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Логическая система}
+  ILDTT \footnote{Intuitionistic Linear Dependent Type Theory} \footcite{vakar}
+  с малой рефлективной подвселенной \footcite{sterling} и guarded recursion
+  \footcite{atkey}.
+\end{frame}
+
+\begin{frame}
+  \printbibliography
+\end{frame}
+
+\end{document}

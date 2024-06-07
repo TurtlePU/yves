@@ -11,3 +11,4 @@ papers/*.snm
 papers/*.synctex.gz
 papers/*.toc
 papers/*.vrb
+papers/*.bcf

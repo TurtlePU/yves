@@ -1,0 +1,858 @@
+\documentclass[12pt]{article}
+\usepackage[a4paper,left=30mm,right=15mm,top=20mm,bottom=20mm]{geometry}
+
+\setlength{\parindent}{1.25cm}
+\usepackage{setspace}
+\setstretch{1.5}
+\usepackage{ragged2e}
+\justifying
+
+\usepackage[T2A]{fontenc}
+\usepackage[english,russian]{babel}
+\usepackage{indentfirst}
+
+\usepackage{hyphenat}
+\hyphenation{Lan-gu-a-ge}
+
+\AddToHook{cmd/section/before}{\clearpage}
+
+\usepackage{hyperref,csquotes}
+\usepackage{biblatex}
+\addbibresource{thesis.bib}
+
+\usepackage{amsmath,amssymb,fontawesome5,mathpartir,mathtools}
+\usepackage[bb=boondox]{mathalfa}
+\DeclareMathOperator{\access}{\text{\faLock}}
+\DeclareMathOperator{\alloc}{alloc}
+\DeclareMathOperator{\elim}{elim}
+\DeclareMathOperator{\inj}{inj}
+\DeclareMathOperator{\inn}{in}
+\DeclareMathOperator{\lett}{let}
+\DeclareMathOperator{\refl}{refl}
+\DeclareMathOperator{\type}{type}
+\newcommand{\letin}[3]{\lett\,#1=#2\,\inn\,#3}
+
+\begin{document}
+
+\setcounter{page}{2}
+
+\section*{Аннотация}
+
+\tableofcontents
+
+\section{Введение}
+
+\subsection{Системное программирование}
+
+Системное программирование --- процесс создания программ, решающих задачи
+общевычислительного характера, таких как выделение и разделение ресурсов, доступ
+к устройствам, обеспечение среды для разработки, запуска и выполнения других
+программ. \cite{wiki:systems} Кроме относящейся сюда разработки операционных
+систем, интегрированных сред разработки и систем управления базами данных, часто
+к системному программированию также относят разработку высокопроизводительных
+серверов и программных утилит, напрямую работающих с ресурсами компьютера, а
+также программирование встраиваемых систем. \cite{embedded}
+
+По прошествии изначального этапа становления программирования и компьютерных
+наук как самостоятельной инженерной и научной дисциплины, интерес к системному
+программированию угас в силу экспоненциального роста производственных мощностей
+благодаря многократному увеличению количества транзисторов, которые физически
+можно расположить в микросхеме процессора (так называемый закон Мура
+\cite{moore}). Однако в последнее время производители столкнулись с
+фундаментальными преградами на пути уменьшения размеров резисторов (на уровне
+5нм ощутимые помехи начинают создавать квантовые эффекты), так что постоянно
+растущие потребности в вычислительной мощности больше нельзя компенсировать
+покупкой более мощного оборудования, и к системному программированию вернулся
+оживлённый интерес. Более того, как уже упоминалось выше, технологии системного
+программирования неизбежно применяются в сфере программирования встраиваемых
+систем, чрезвычайно популярных в последнее время благодаря введению в моду
+концепций Умного дома \cite{smart-home} и Интернета вещей \cite{iot}.
+
+В силу специфичной сферы применения, к программам, разрабатываемым в рамках
+системного программирования, предъявляются повышенные требования к
+быстродействию, экономности по памяти и одновременно безопасности времени
+исполнения --- отсутствие критических ошибок, приводящих к отказу работы других
+программ либо к потере пользовательских данных. Однако зачастую эти требования
+оказываются противоречащими друг другу, так что ландшафт решений для облегчения
+работы системного программиста состоит из всевозможных компромиссов и
+поэтому крайне широк:
+
+\begin{itemize}
+  \item Библиотеки для ручного управления памятью в высокоуровневых языках \\
+    программирования \cite{haskell:st} \cite{scala:alien-memory};
+  \item Библиотеки, абстрагирующие управление памятью в низкоуровневых языках \\
+    программирования \cite{c:tgc};
+  \item Библиотеки, предоставляющие высокоуровневый интерфейс взаимодействия \\
+    с внешней средой в низкоуровневых языках программирования \cite{cpp:stl};
+  \item Утилиты для слежения за некорректным обращением с памятью
+    \cite{valgrind};
+  \item Дебаггеры для слежения за исполнением программы \cite{gdb};
+  \item Статические анализаторы системных языков программирования для поиска
+    ошибок в обращении с памятью (и других возможных ошибок) с помощью
+    абстрактной интерпретации \cite{pvs-studio};
+  \item Собственно, системные языки программирования.
+\end{itemize}
+
+Для нас особый интерес представляют именно языки программирования, поскольку
+среди вышеперечисленных средств только они могут включать в себя надёжный способ
+проверки корректности программы в виде специальной \textbf{системы типов}.
+
+\subsection{Теория типов}
+
+Система типов --- исполнимый синтаксический метод доказательства отсутствия
+определённого поведения программы с помощью классификации выражений по типу
+значений, которые они вычисляют. \cite{pierce} Кроме этого, заданная правильным
+образом система типов помогает решать следующие задачи системного
+программирования:
+
+\begin{itemize}
+  \item Представление данных в памяти процесса;
+  \item Эффективное исполнение программ;
+  \item Контроль побочных эффектов.
+\end{itemize}
+
+Заметим, что под ``побочными эффектами'' в зависимости от контекста понимают
+различные вещи. Как правило, они включают в себя взаимодействие с внешним миром,
+исключения, логирование и изменение внешнего по отношению к процедуре фрагмента
+памяти; в некоторых контекстах (прежде всего в программировании встраиваемых
+устройств и операционных систем) побочные эффекты включают в себя и динамические
+аллокации.
+
+\subsubsection{Зависимые типы}
+
+Отдельной сферой активных исследований в сфере теории типов является
+исследование и поиск систем с зависимыми типами, т.е. такими, в которых кроме
+термов, зависящих от других термов, можно вводить определения типов, точно так
+же зависящих от термов. Помимо того, что зависимые типы позволяют более точно
+описывать множества значений, оперируемых программой, корректно построенные
+системы типов с зависимыми типами естественным образом соответствуют логикам
+высшего порядка (этот феномен также известен как соответствие Карри-Говарда).
+С этой точки зрения, программы особых типов можно рассматривать как
+автоматически проверяемые доказательства соответствующих утверждений; более
+того, такие системы зачастую позволяют строить доказательства свойств программ,
+написанных на этом же языке, что делает их очень привлекательными средствами для
+создания доказуемо корректного программного обеспечения.
+
+В частности, в результате данной работы будет предъявлено лямбда-исчисление с
+зависимыми типами, поддерживающее контроль динамических аллокаций и эффективную
+компиляцию в программы, исполнимые на устройствах архитектуры фон Неймана; более
+того, предъявленное исчисление будет сохранять все удобства функционального
+программирования для написания простого, читаемого и легко компонируемого кода.
+
+\subsection{Другие системные языки программирования}
+
+Начиная с 1960х годов, появилось множество системных языков программирования,
+нашедших свои применения на различных платформах и в различных практических
+приложениях. Среди них особенно выделяются мультиплатформенные языки, обещающие
+максимальную производительность и удобство на большом количестве различных
+архитектур и операционных систем. Все они достаточно сильно отличаются друг от
+друга в силу различных систем типов, диктующих определённый стиль
+программирования и предоставляющих различные гарантии безопасности и
+производительности. Далее приведён краткий обзор наиболее значимых
+представителей.
+
+\subsubsection{C}
+
+Повсеместно встречающийся и повсеместно изучаемый системный язык
+программирования с достаточно простой системой типов, включающей структуры
+(по сути своей типы-произведения), типы-объединения, числовые типы и типы
+указателей. В силу правильным образом подобранных базовых типов и операций,
+программы на C не требуют никаких накладных расходов по времени и памяти при
+исполнении программы относительно её исходного кода. Кроме того, простота языка
+обеспечила ему роль промежуточного языка для общения между участками кода,
+написанными на различных языках: практически любой другой современный язык
+программирования поддерживает так называемый Foreign Function Interface с C, то
+есть возможность вызывать процедуры на C из исходного кода этого языка и
+наоборот.
+
+С другой стороны, сочетание слабой дисциплины типизации с очень высокой
+выразительной силой операций (арифметика указателей, прямой доступ к памяти)
+приводит к огромной свободе действий программиста без возможности автоматически
+проверить поведение получающихся программ на корректность, что приводит к
+огромному количеству ошибок; некоторые критические ошибки в коде на C
+сорокалетней давности находят по сей день.
+
+\subsubsection{C++}
+
+C++ --- мультипарадигмальный язык программирования, изначально созданный Бьярном
+Страуструпом как расширение C средствами объектно-ориентированного
+программирования с сохранением фокуса на производительности кода. Выбранный в
+C++ подход стал известен под названием zero-cost abstraction и, если быть
+точным, значит, что разработчики языка C++ гарантируют, что если в языке введён
+какой-либо механизм без возможности его замены пользователем языка, то любой
+пользователь этого языка не сможет реализовать аналогичный механизм более
+эффективным способом; более того, сам факт существования этого механизма не
+должен влиять на производительность кода, его не использующего. Например, код,
+не использующий механизмы выбрасывания и обработки исключений, выполняется так
+же быстро и экономно по памяти, как если бы в языке не было этого механизма.
+
+Со временем, в C++ было добавлено всё больше zero-cost abstractions и всё больше
+возможностей, позволяющих писать более краткий и более выразительный код. Таким
+образом появился язык с производительностью, максимально близкой к C, но на
+первый взгляд гораздо более удобный и выразительный для написания кода. Однако
+ключевые проблемы языка C относительно безопасности написанного кода и
+каких-либо гарантий поведения не были решены (а во многих случаях и усугублены),
+так что абсолютное большинство современных высокопроизводительных программ
+содержит огромное количество кода на C++, уязвимое к всевозможным ошибкам. Как
+правило, это не является проблемой, когда упавшую программу можно просто
+перезапустить (а компьютер с упавшей операционной системой --- перезагрузить),
+но в некоторых областях применения --- таких как программное обеспечение суден,
+медицинское оборудование, защита данных от злоумышленников --- ошибка просто
+недопустима, так что код на С/C++ в данных сферах подвергают всевозможным
+проверкам, могущим показаться безумными любому внешнему наблюдателю.
+
+\subsubsection{Rust}
+
+Rust --- выпущенный Mozilla в 2015 году новый системный язык программирования,
+созданный для преодоления проблем с безопасностью, создаваемых использованием
+C/C++. Внешне похожий на языки из семейства ALGOL (куда относятся и C, и C++),
+тем не менее Rust начинался как язык-наследник ML, одного из старейших
+статически типизированных функциональных языков программирования; от ML данный
+язык перенял типы-суммы и параметрический полиморфизм, которые он с ростом
+популярности языка привнёс в мейнстрим (например, похожие механизмы в итоге были
+добавлены в новейшие версии C++).
+
+Однако основной инновацией Rust стало использование аффинной системы типов
+(системы, в которой запрещено произвольное копирование значений) в сочетании с
+новым механизмом ``заимствования'', задающим правила работы со ссылками на
+аффинные значения, воспроизводящими доказуемо безопасное подмножество операций с
+указателями из C. Это позволило писать программы с производительностью,
+максимально приближенной к производительности программ на C, похожие на
+программы на C, но вдобавок ко всему доказуемо безопасные по памяти!
+
+Единственным, но достаточно серьёзным ограничением стало очень сильное \\
+ограничение выразительной силы указателей на значения и их арифметики: в
+частности, в Rust очень плохо моделируются типы данных, указывающие сами на
+себя и, в целом, любые сложные графы зависимостей на указателях. В данных
+случаях пользователи Rust вынуждены прибегнуть к одному из следующего:
+
+\begin{itemize}
+  \item использовать созданные для конкретных случаев механизмы языка (Pin);
+  \item пересоздавать арифметику указателей вручную с помощью числовой
+    арифметики (generational indices);
+  \item использовать так называемые ``умные'' указатели, требующие
+    дополнительных расходов по времени и памяти (хотя код на C/C++ их не
+    потребует);
+  \item изменить архитектуру программы на более простую;
+  \item использовать дополнительные конструкции языка для работы с указателями,
+    корректность работы которых система типов гарантировать не может.
+\end{itemize}
+
+\subsubsection{ATS}
+
+Созданный с той же целью, что и Rust --- сделать системное программирование
+безопасным --- ATS предлагает гораздо более сложную и продвинутую систему типов,
+включающую в себя линейные типы (нельзя ни копировать, ни удалять), возможности
+для функционального программирования и, наконец, средства для доказательства
+теорем о корректности исполняемых программ. Однако ATS содержит такое большое
+количество взаимозаменяемых выразительных средств и похожих друг на друга
+концепций, наоборот имеющих только свои узкие сферы применения, и так сложен в
+изучении, что его сложно считать успешным опытом реализации системного языка
+программирования с продвинутой системой типов.
+
+\subsection{Постановка задачи}
+
+Познакомившись со сферой системного программирования и изучив существующие языки
+системного программирования, мы пришли к выводу, что достойной и актуальной
+задачей является создание \textbf{системного языка программирования с зависимыми
+типами} со следующими качествами:
+
+\begin{itemize}
+  \item предоставляющий сильные гарантии безопасности во время исполнения;
+  \item достаточно гибкий, чтобы выразить больше идиом в работе с указателями;
+  \item позволяющий эффективно скомпилированному коду приблизиться по
+    производительности к существующим системным языкам программирования.
+\end{itemize}
+
+\section{Лямбда-исчисление с зависимыми типами}
+
+Для знакомства с основными понятиями и техниками при проведении исследований в
+сфере теории типов, а также с выбранной в данном тексте нотацией, мы кратко (но
+полно) рассмотрим исчисление, являющееся отправной точкой в любой работе на тему
+зависимых типов: интуиционистскую теория типов, также ``конструктивная теория
+типов'', также ``теория типов с зависимыми типами Мартина-Лёфа''. Рассмотрим её
+декларативные правила типизации, грамматические конструкции, её свойства в
+качестве логической системы, а также основные сложности в её практической
+реализации.
+
+\subsection{Система типов}
+
+Далее приведена формализация системы как приведена в ncatlab. Она включает в
+себя следующие логические суждения:
+
+\begin{center}
+\begin{tabular}{rl}
+  $\Gamma \vdash \tau \type$ & Формулировка типов \\
+  $\Gamma \vdash t : \tau$ & Введение и устранение термов \\
+  $\Gamma \vdash \sigma \equiv \tau$ & Равенство типов \\
+  $\Gamma \vdash t \equiv u : t$ & Равенство термов \\
+  $\vdash \Gamma \; \mathrm{ctx}$ & Корректность построения контекста
+\end{tabular}
+\end{center}
+
+Корректно построенный контекст определяется как последовательность (уникальных)
+имён, проаннотированных корректно сформулированными типами:
+\begin{mathpar}
+  \inferrule{ }{\vdash \cdot \; \mathrm{ctx}}\textsc{Ctx-Empty} \and
+  \inferrule
+    {\vdash \Gamma \; \mathrm{ctx} \\ \Gamma \vdash \tau \type}
+    {\vdash \Gamma, x: \tau \; \mathrm{ctx}}
+    \textsc{Ctx-Cons}
+\end{mathpar}
+
+Имена являются атомарными термами, а контекст поддерживает ослабление и
+подстановку:
+\begin{mathpar}
+  \inferrule
+    {\Gamma \vdash \tau \type}
+    {\Gamma, x: \tau \vdash x: \tau}
+    \textsc{Var} \and
+  \inferrule
+    {\Gamma, \Delta \vdash \Phi \\ \Gamma \vdash \tau \type}
+    {\Gamma, x: \tau, \Delta \vdash \Phi}
+    \textsc{W} \and
+  \inferrule
+    {\Gamma, x: \tau, \Delta \vdash \Phi \\ \Gamma \vdash t: \tau}
+    {\Gamma, \Delta[t / x] \vdash \Phi[t / x]}
+    \textsc{S}
+\end{mathpar}
+
+\newpage
+
+Равенство-по-определению является конгруэнтностью, и с его помощью можно
+конвертировать переменные:
+\begin{mathpar}
+  \inferrule
+    {\Gamma \vdash \tau \type}
+    {\Gamma \vdash \tau \equiv \tau}
+    \textsc{$\equiv$-type-Refl} \and
+  \inferrule
+    {\Gamma \vdash \tau \type \\ \Gamma \vdash t : \tau}
+    {\Gamma \vdash t \equiv t : \tau}
+    \textsc{$\equiv$-term-Refl} \and
+  \inferrule
+    {\Gamma \vdash \sigma \equiv \tau}
+    {\Gamma \vdash \tau \equiv \sigma}
+    \textsc{$\equiv$-type-Sym} \and
+  \inferrule
+    {\Gamma \vdash \tau \type \\ \Gamma \vdash t \equiv u : \tau}
+    {\Gamma \vdash u \equiv t : \tau}
+    \textsc{$\equiv$-term-Sym} \and
+  \inferrule
+    {\Gamma \vdash \rho \equiv \sigma \\ \Gamma \vdash \sigma \equiv \tau}
+    {\Gamma \vdash \rho \equiv \tau}
+    \textsc{$\equiv$-type-Trans} \and
+  \inferrule
+    {\Gamma \vdash \tau \type \\ \Gamma \vdash t \equiv u : \tau
+                              \\ \Gamma \vdash u \equiv v : \tau}
+    {\Gamma \vdash t \equiv v : \tau}
+    \textsc{$\equiv$-term-Trans} \and
+  \inferrule
+    {\Gamma \vdash \tau \type
+    \\ \Gamma \vdash t \equiv u : \sigma
+    \\ \Gamma, x: \sigma, \Delta \vdash \tau \type}
+    {\Gamma, \Delta[u/x] \vdash \tau[t/x] \equiv \tau[u/x]}
+    \textsc{$\equiv$-type-Sub} \and
+  \inferrule
+    {\Gamma \vdash \tau \type
+    \\ \Gamma \vdash t \equiv u : \sigma
+    \\ \Gamma, x: \sigma, \Delta \vdash v : \tau}
+    {\Gamma, \Delta[u/x] \vdash v[t/x] \equiv v[u/x] : \tau[u/x]}
+    \textsc{$\equiv$-term-Sub} \and
+  \inferrule
+    {\Gamma \vdash \sigma \equiv \tau
+    \\ \Gamma, x: \sigma, \Delta \vdash \Phi}
+    {\Gamma, x: \tau, \Delta \vdash \Phi}
+    \textsc{Var-Conv}
+\end{mathpar}
+
+Исчисление включает в себя типы зависимых функций, зависимых пар, тип-сумму,
+пустой тип (также известный как 0-тип), тип с единственным значением (1-тип),
+тип натуральных чисел и, наконец, тип равенства. Каждый из типов добавляет свои
+правила формулировки типов, введения и устранения термов, а также специальные
+правила равенства термов, разделяемые на ``правила вычисления'' и ``правила
+единственности''. Так, функции, возвращаемый тип которых зависит от значения
+аргумента, задаются следующими правилами вывода:
+
+\begin{mathpar}
+  \inferrule
+    {\Gamma\vdash\sigma\type \\ \Gamma,x:\sigma\vdash\tau\type}
+    {\Gamma\vdash\Pi_{x:\sigma}\tau\type}
+    \textsc{$\Pi$-F} \and
+  \inferrule
+    {\Gamma,x:\sigma\vdash t:\tau}
+    {\Gamma\vdash\lambda(x:\sigma).t:\Pi_{x:\sigma}\tau}
+    \textsc{$\Pi$-I} \and
+  \inferrule
+    {\Gamma\vdash f:\Pi_{x:\sigma}\tau \\ \Gamma\vdash t:\sigma}
+    {\Gamma\vdash f t:\tau[t/x]}
+    \textsc{$\Pi$-E} \and
+  \inferrule
+    {\Gamma,x:\sigma\vdash t:\tau \\ \Gamma\vdash u:\sigma}
+    {\Gamma\vdash(\lambda(x:\sigma).t)u\equiv t[u/x]:\tau[u/x]}
+    \textsc{$\Pi$-C} \and
+  \inferrule
+    {\Gamma\vdash f:\Pi_{x:\sigma}\tau}
+    {\Gamma\vdash f\equiv\lambda(x:\sigma).f x:\Pi_{x:\sigma}\tau}
+    \textsc{$\Pi$-U}
+\end{mathpar}
+
+Аналогично вводится тип пар, в которых тип второй компоненты зависит от значения
+первой компоненты:
+
+\begin{mathpar}
+  \inferrule
+    {\Gamma\vdash\sigma\type \\ \Gamma,x:\sigma\vdash\tau\type}
+    {\Gamma\vdash\Sigma_{x:\sigma}\tau\type}
+    \textsc{$\Sigma$-F}\and
+  \inferrule
+    {\Gamma\vdash t:\sigma \\ \Gamma\vdash u:\tau[t/x]}
+    {\Gamma\vdash(t,u):\Sigma_{x:\sigma}\tau}
+    \textsc{$\Sigma$-I}\and
+  \inferrule
+    {\Gamma\vdash t:\Sigma_{x:\sigma}\tau}
+    {\Gamma\vdash\pi_1 t:\sigma}
+    \textsc{$\Sigma$-$\textsc{E}_1$}\and
+  \inferrule
+    {\Gamma\vdash t:\Sigma_{x:\sigma}\tau}
+    {\Gamma\vdash\pi_2 t:\tau[\pi_1 t/x]}
+    \textsc{$\Sigma$-$\textsc{E}_2$}\and
+  \inferrule
+    {\Gamma\vdash t:\sigma\\\Gamma\vdash u:\tau[t/x]}
+    {\Gamma\vdash\pi_1(t,u)\equiv t:\sigma}
+    \textsc{$\Sigma$-$\textsc{C}_1$}\and
+  \inferrule
+    {\Gamma\vdash t:\sigma\\\Gamma\vdash u:\tau[t/x]}
+    {\Gamma\vdash\pi_2(t,u)\equiv u:\tau[\pi_1(t,u)/x]}
+    \textsc{$\Sigma$-$\textsc{C}_2$}\and
+  \inferrule
+    {\Gamma\vdash t:\Sigma_{x:\sigma}\tau}
+    {\Gamma\vdash t\equiv(\pi_1 t,\pi_2 t):\Sigma_{x:\sigma}\tau}
+    \textsc{$\Sigma$-U}
+\end{mathpar}
+
+Тип-сумма $\sigma + \tau$ --- по сути своей дизъюнктное объединение типов
+$\sigma$ и $\tau$. 0-тип по определению не содержит элементов; 1-тип ---
+содержит единственный элемент. Натуральные числа поддерживают принцип индукции.
+
+\begin{mathpar}
+  \inferrule
+    {(\forall i)\;\Gamma\vdash\sigma_i\type}
+    {\Gamma\vdash\sigma_1+\sigma_2\type}
+    \textsc{$+$-F}\and
+  \inferrule
+    {\Gamma\vdash t:\sigma_i}
+    {\Gamma\vdash\inj_i t:\sigma_1+\sigma_2}
+    \textsc{$+$-$\textsc{I}_i$}\and
+  \inferrule
+    {\Gamma\vdash t:\sigma_1+\sigma_2
+    \\\Gamma,x:\sigma_1+\sigma_2\vdash\tau\type
+    \\(\forall i)\;\Gamma,x_i:\sigma_i\vdash t_i:\tau[\inj_i x_i/x]}
+    {\Gamma\vdash\elim^+_{x.\tau} t(\inj_1 x_1\mapsto t_1;\inj_2 x_2\mapsto t_2)
+      :\tau[t/x]}
+    \textsc{$+$-E}\and
+  \inferrule
+    {\Gamma\vdash t:\sigma_i
+    \\\Gamma,x:\sigma_1+\sigma_2\vdash\tau\type
+    \\(\forall j)\;\Gamma,x_j:\sigma_j\vdash t_j:\tau[\inj_j x_j/x]}
+    {\Gamma\vdash\elim^+_{x.\tau}(\inj_i)
+        (\inj_1 x_1\mapsto t_1;\inj_2 x_2\mapsto t_2)
+      \equiv t_i[t/x]:\tau[\inj_i t/x]}
+    \textsc{$+$-$\textsc{C}_i$}\and
+  \inferrule
+    {\Gamma\vdash t:\sigma_1+\sigma_2
+    \\\Gamma,x:\sigma_1+\sigma_2\vdash\tau\type
+    \\\Gamma,x:\sigma_1+\sigma_2\vdash u:\tau
+    \\(\forall i)\;\Gamma,x_i:\sigma_i\vdash t_i:\tau[\inj_i x_i/x]
+    \\(\forall i)\;\Gamma,x_i:\sigma_i\vdash
+      u[\inj_i x_i/x]\equiv t_i:\tau[\inj_i x_i/x]}
+    {\Gamma\vdash u[t/x]\equiv\elim^+_{x.\tau}t
+        (\inj_1 x_1\mapsto t_1;\inj_2 x_2\mapsto t_2):\tau[t/x]}
+    \textsc{$+$-U}\and
+  \inferrule
+    {\vdash\Gamma\;\mathrm{ctx}}
+    {\Gamma\vdash\mathbb{0}\type}
+    \textsc{$\mathbb{0}$-F}\and
+  \inferrule
+    {\Gamma\vdash t:\mathbb{0}\\\Gamma,x:\mathbb{0}\vdash\sigma\type}
+    {\Gamma\vdash\elim^\mathbb{0}_{x.\sigma}t:\sigma[t/x]}
+    \textsc{$\mathbb{0}$-E}\and
+  \inferrule
+    {\Gamma\vdash t:\mathbb{0}
+    \\\Gamma,x:\mathbb{0}\vdash\sigma\type
+    \\\Gamma,x:\mathbb{0}\vdash u:\sigma}
+    {\Gamma\vdash u[t/x]\equiv\elim^\mathbb{0}_{x.\sigma}t:\sigma[t/x]}
+    \textsc{$\mathbb{0}$-U}\and
+  \inferrule
+    {\vdash\Gamma\;\mathrm{ctx}}
+    {\Gamma\vdash\mathbb{1}\type}
+    \textsc{$\mathbb{1}$-F}\and
+  \inferrule
+    {\vdash\Gamma\;\mathrm{ctx}}
+    {\Gamma\vdash *:\mathbb{1}}
+    \textsc{$\mathbbb{1}$-I}\and
+  \inferrule
+    {\Gamma\vdash t:\mathbb{1}
+    \\\Gamma,x:\mathbb{1}\vdash\sigma\type
+    \\\Gamma\vdash u:\sigma[*/x]}
+    {\Gamma\vdash\elim^\mathbb{1}_{x.\sigma}t(*\mapsto u):\sigma[t/x]}
+    \textsc{$\mathbb{1}$-E}\and
+  \inferrule
+    {\Gamma,x:\mathbb{1}\vdash\sigma\type\\\Gamma\vdash t:\sigma[*/x]}
+    {\Gamma\vdash\elim^\mathbb{1}_{x.\sigma}*(*\mapsto u)\equiv u:\sigma[*/x]}
+    \textsc{$\mathbb{1}$-C}\and
+  \inferrule
+    {\Gamma\vdash t:\mathbb{1}
+    \\\Gamma,x:\mathbb{1}\vdash\sigma\type
+    \\\Gamma,x:\mathbb{1}\vdash u:\sigma
+    \\\Gamma\vdash v:\sigma[*/x]
+    \\\Gamma\vdash u[*/x]\equiv v:\sigma[*/x]}
+    {\Gamma\vdash u[t/x]\equiv\elim^\mathbb{1}_{x.\sigma}t(*\mapsto v)
+      :\sigma[t/x]}
+    \textsc{$\mathbb{1}$-U}
+\end{mathpar}
+
+\begin{mathpar}
+  \inferrule
+    {\vdash\Gamma\;\mathrm{ctx}}
+    {\Gamma\vdash\mathbb{N}\type}
+    \textsc{$\mathbb{N}$-F}\and
+  \inferrule
+    {\vdash\Gamma\;\mathrm{ctx}}
+    {\Gamma\vdash 0:\mathbb{N}}
+    \textsc{$\mathbb{N}$-$\textsc{I}_0$}\and
+  \inferrule
+    {\Gamma\vdash t:\mathbb{N}}
+    {\Gamma\vdash S t:\mathbb{N}}
+    \textsc{$\mathbb{N}$-$\textsc{I}_S$}\and
+  \inferrule
+    {\Gamma\vdash t:\mathbb{N}
+    \\\Gamma,x:\mathbb{N}\vdash\sigma\type
+    \\\Gamma\vdash t_0:\sigma[0/x]
+    \\\Gamma,x:\mathbb{N},h:\sigma\vdash t_S:\sigma[S x/x]}
+    {\Gamma\vdash\elim^\mathbb{N}_{x.\sigma}t(0\mapsto t_0;S x,h\mapsto t_S)
+      :\sigma[t/x]}
+    \textsc{$\mathbb{N}$-E}\and
+  \inferrule
+    {\Gamma,x:\mathbb{N}\vdash\sigma\type
+    \\\Gamma\vdash t_0:\sigma[0/x]
+    \\\Gamma,x:\mathbb{N},h:\sigma\vdash t_S:\sigma[S x/x]}
+    {\Gamma\vdash\elim^\mathbb{N}_{x.\sigma}0(0\mapsto t_0;S x,h\mapsto t_S)
+      \equiv t_0:\sigma[0/x]}
+    \textsc{$\mathbb{N}$-$\textsc{C}_0$}\and
+  \inferrule
+    {\Gamma\vdash t:\mathbb{N}\\\Gamma,x:\mathbb{N}\vdash\sigma\type
+    \\\Gamma\vdash t_0:\sigma[0/x]
+    \\\Gamma,x:\mathbb{N},h:\sigma\vdash t_S:\sigma[S x/x]}
+    {\Gamma\vdash\elim^\mathbb{N}_{x.\sigma}(S t)(0\mapsto t_0;S x,h\mapsto t_S)
+    \equiv t_S[t/x]
+        [\elim^\mathbb{N}_{x.\sigma}t(0\mapsto t_0;S x,h\mapsto t_S)/h]
+    :\sigma[S t/x]}
+    \textsc{$\mathbb{N}$-C}\and
+  \inferrule
+    {\Gamma\vdash t:\mathbb{N}\\\Gamma,x:\mathbb{N}\vdash\sigma\type
+    \\\Gamma,x:\mathbb{N}\vdash u:\sigma
+    \\\Gamma\vdash t_0:\sigma[0/x]
+    \\\Gamma,x:\mathbb{N},h:\sigma\vdash t_S:\sigma[S x/x]
+    \\\Gamma\vdash u[0/x]\equiv t_0:\sigma[0/x]
+    \\\Gamma\vdash u[S x/x]\equiv t_S[u/h]}
+    {\Gamma\vdash u[t/x]\equiv
+      \elim^\mathbb{N}_{x.\sigma}(0\mapsto t_0;S x,h\mapsto t_S):\sigma[t/x]}
+    \textsc{$\mathbb{N}$-U}
+\end{mathpar}
+
+Наконец, самый интересный тип (и первый по-настоящему зависимый тип) --- тип
+равенства, благодаря которому внутри системы Мартина-Лёфа становится возможным
+доказывать всевозможные теоремы. Он индексируется двумя представителями одного и
+того же произвольного типа; единственный конструктор --- доказательство по
+рефлексивности. Имея в виду этот факт, правило элиминации равенства позволяет
+переписывать одни термы внутри типов на другие, если доказано, что они равны.
+
+\begin{mathpar}
+  \inferrule
+    {\Gamma\vdash\sigma\type}
+    {\Gamma,x:\sigma,y:\sigma\vdash x=y\type}
+    \textsc{$=$-F}\and
+  \inferrule
+    {\Gamma\vdash\sigma\type}
+    {\Gamma,x:\sigma\vdash\refl x:x=x}
+    \textsc{$=$-I}\and
+  \inferrule
+    {\Gamma,x:\sigma,y:\sigma,z:x=y\vdash\tau\type
+    \\\Gamma,x:\sigma\vdash u:\tau[x/y,\refl x/z]}
+    {\Gamma,x:\sigma,y:\sigma,z:x=y\vdash\elim^=_{xyz.\tau}z(\refl x\mapsto u)
+      :\tau}
+    \textsc{$=$-E}\and
+  \inferrule
+    {\Gamma,x:\sigma,y:\sigma,z:x=y\vdash\tau\type
+    \\\Gamma,x:\sigma\vdash u:\tau[x/y,\refl x/z]}
+    {\Gamma,x:\sigma\vdash\elim^=_{xyz.\tau}(\refl x)(\refl x\mapsto u)\equiv u
+      :\tau[x/y,\refl x/z]}
+    \textsc{$=$-C}
+\end{mathpar}
+
+\subsection{Метатеоремы}
+
+\subsection{Задача полной и частичной типизации}
+
+\section{Операционная семантика}
+
+\subsection{Семантика лямбда-исчисления}
+
+\subsection{Стековая машина с кодовой секцией}
+
+Программа для стековой машины с кодовой секцией --- пара $(D, S)$, где $S$ ---
+это последовательность инструкций (``подпрограмма''), которые машине предстоит
+выполнить, а $D$ --- ``кодовая секция'', словарь подпрограмм, на которые можно
+ссылаться при выполнении любой подпрограммы.
+
+При выполнении программы машина манипулирует стеком, в котором могут лежать как
+численные значения, так и имена подпрограмм из кодовой секции. Выполнение
+программы состоит из последовательного исполнения инструкций из $S$.
+
+Каждая инструкция имеет вид $\verb|op|(x_1,\ldots,x_a)$, где $a$ --- число
+значений, которое она забирает с верхушки стека для выполнения. Доступны
+следующие инструкции:
+
+\begin{center}
+\begin{tabular}{|c|l}
+  $n()$                     & Положить число $n$ на верхушку стека. \\
+  $x()$                     & Положить имя $x$ на верхушку стека. \\
+  $+(x_1,x_2)$              & Заменить два верхних числа на стеке на их
+                              сумму. \\
+  $-(x_1,x_2)$              & Аналогично, но числа вычитаются. \\
+  $(\cdot)(x_1,x_2)$        & Аналогично, но числа перемножаются. \\
+  $\verb|if0|(x_1,x_2,x_3)$ & Если $x_1 = 0$, оставляет на верхушке $x_2$,
+                              иначе $x_3$. \\
+  $\verb|copy|(x_1)$        & Заменить число $x_1$ на верхушке на $x_1$-е число
+                              в стеке, считая снизу. \\
+  $\verb|write|(x_1,x_2)$   & Записать $x_2$ на $x_1$-ю позицию в стеке, считая
+                              снизу. \\
+  $\verb|call|(x_1)$        & Выполнить $D[x_1]$, затем вернуться к текущей
+                              подпрограмме.
+\end{tabular}
+\end{center}
+
+\subsection{Машина с кучей}
+
+\begin{center}
+\begin{tabular}{|c|l}
+  $\verb|new|^n(x_1,\ldots,x_n)$ & Перемещает $x_1,\ldots,x_n$ на кучу. \\
+  $\verb|delete|(x_1)$           & Удаляет значения по указателю $x_1$ из кучи.
+\end{tabular}
+\end{center}
+
+\section{Линейные типы и ресурсная логика}
+
+\subsection{Безопасное управление памятью}
+
+\subsection{Линейные зависимые типы}
+
+Bunched contexts
+
+Vakar:
+
+\begin{center}
+\begin{tabular}{rl}
+  $\vdash \Delta; \Xi \;\mathrm{ctxt}$ & \\
+  $\Delta; \cdot \vdash \tau \type$ & \\
+  $\Delta; \Xi \vdash t: \tau$ & \\
+  $\vdash \Delta; \Xi \equiv \Delta'; \Xi' \;\mathrm{ctxt}$ & \\
+  $\Delta; \cdot \vdash \tau \equiv \tau' \type$ & \\
+  $\Delta; \Xi \vdash t \equiv t': \tau$ &
+\end{tabular}
+\end{center}
+
+\begin{mathpar}
+  \inferrule
+    {\vdash \Delta,x:\tau,\Delta';\cdot \;\mathrm{ctxt}}
+    {\Delta,x:\tau,\Delta';\cdot\vdash x:\tau}
+    \textsc{Int-Var} \and
+  \inferrule
+    {\vdash \Delta;x:\tau \;\mathrm{ctxt}}
+    {\Delta;x:\tau\vdash x:\tau}
+    \textsc{Lin-Var} \and
+  \inferrule
+    {\Delta,x:\sigma,\Delta';\cdot\vdash\tau\type
+    \\ \Delta;\cdot\vdash t:\sigma}
+    {\Delta,\Delta'[t/x];\cdot\vdash\tau[t/x]\type}
+    \textsc{Int-Ty-Subst} \and
+  \inferrule
+    {\Delta,x:\sigma,\Delta';\Xi\vdash u:\tau
+    \\ \Delta;\cdot\vdash t:\sigma}
+    {\Delta,\Delta'[t/x];\Xi[t/x]\vdash u[t/x]:\tau[t/x]}
+    \textsc{Int-Tm-Subst} \and
+  \inferrule
+    {\Delta;\Xi,x:\sigma\vdash u:\tau \\ \Delta;\Xi'\vdash t:\sigma}
+    {\Delta;\Xi,\Xi'\vdash u[t/x]:\tau}
+    \textsc{Lin-Tm-Subst}
+\end{mathpar}
+
+\begin{mathpar}
+  \inferrule
+    {\Delta;\cdot\vdash\sigma\type\\\Delta,x:\sigma;\cdot\vdash\tau\type}
+    {\Delta;\cdot\vdash\Sigma_{!x:!\sigma}\tau\type}
+    \textsc{$\Sigma$-F} \and
+  \inferrule
+    {\Delta;\cdot\vdash t:\sigma\\\Delta;\Xi\vdash u:\tau[t / x]}
+    {\Delta;\Xi\vdash\;!t\otimes u:\Sigma_{!x:!\sigma}\tau}
+    \textsc{$\Sigma$-I} \and
+  \inferrule
+    {\Delta;\cdot\vdash\rho\type \\
+    \Delta;\Xi\vdash t:\Sigma_{!x:!\sigma}\tau\\
+    \Delta,x:\sigma;\Xi',y:\tau\vdash r:\rho}
+    {\Delta;\Xi,\Xi'\vdash\letin{!x\otimes y}{t}{r}:\rho}
+    \textsc{$\Sigma$-E} \and
+  \inferrule
+    {\Delta;\cdot\vdash\sigma\type\\\Delta;\cdot\vdash\tau\type}
+    {\Delta;\cdot\vdash\sigma\multimap\tau\type}
+    \textsc{$\multimap$-F} \and
+  \inferrule
+    {\Delta;\Xi,x:\sigma\vdash t:\tau}
+    {\Delta;\Xi\vdash\lambda_{x:\sigma}t:\sigma\multimap\tau}
+    \textsc{$\multimap$-I} \and
+  \inferrule
+    {\Delta;\Xi\vdash f:\sigma\multimap\tau\\\Delta;\Xi'\vdash t:\sigma}
+    {\Delta;\Xi,\Xi'\vdash f\;t:\tau}
+    \textsc{$\multimap$-E} \and
+  \inferrule
+    {\Delta;\cdot\vdash\sigma\type}
+    {\Delta;\cdot\vdash\;!\sigma\type}
+    \textsc{$!$-F} \and
+  \inferrule
+    {\Delta;\cdot\vdash t:\sigma}
+    {\Delta;\cdot\vdash\;!t:\;!\sigma}
+    \textsc{$!$-I} \and
+  \inferrule
+    {\Delta;\Xi\vdash t:\;!\sigma\\\Delta,x:\sigma;\Xi'\vdash u:\tau}
+    {\Delta;\Xi,\Xi'\vdash\letin{!x}{t}{u}:\tau}
+    \textsc{$!$-E}
+\end{mathpar}
+
+Аналогично вводятся $\Pi$-, $1$-, $\otimes$-, $\top$-, $\&$-, $0$- и $\oplus$-
+типы.
+
+\section{Экзистенциальные типы}
+
+\subsection{Эффективное представление замыканий}
+
+\begin{mathpar}
+  \inferrule
+    {\Gamma,\blacksquare,x:\sigma;\Psi,\blacksquare,y:\tau\vdash t:\rho
+    \\\blacksquare\not\in\Gamma,\Psi\\x\not\in\mathrm{Free}(\Psi)}
+    {\Gamma;\Psi\vdash\lambda_{!x:!\sigma}\lambda_{y:\tau}t
+    :\Pi_{!x:!\sigma}\tau\multimap\rho}
+\end{mathpar}
+
+\[
+  (\sigma\multimap'\tau)\coloneq
+  \Sigma_{!\gamma:!\type}\gamma\otimes(\sigma\otimes\gamma\multimap\tau)
+\]
+\[
+  \Pi'_{!x:!\sigma}\tau\coloneq
+  \Sigma_{!\gamma:!\type}\gamma\otimes(\Pi_{!x:!\sigma}\gamma\multimap\tau)
+\]
+
+\subsection{Вселенные}
+
+Парадокс Жирара!
+
+\subsection{Рефлективные подвселенные}
+
+\begin{mathpar}
+  \inferrule
+    {\Delta;\cdot\vdash A\type_1}
+    {\Delta;\cdot\vdash\bigcirc A\type_0}
+    \textsc{$\bigcirc$-F} \and
+  \inferrule
+    {\Delta;\cdot\vdash A\type_1 \\
+    \Delta;\Xi\vdash a:A}
+    {\Delta;\Xi\vdash\eta_A a:\bigcirc A}
+    \textsc{$\bigcirc$-I} \and
+  \inferrule
+    {\Delta;\cdot\vdash C\type_O \\
+    \Delta;\Xi\vdash u:\bigcirc A \\
+    \Delta;x:A,\Xi'\vdash v:C}
+    {\Delta;\Xi,\Xi'\vdash\letin{\eta_A x}{u}{v}:C}
+    \textsc{$\bigcirc$-E}
+\end{mathpar}
+
+\section{Прямой доступ к памяти}
+
+\subsection{Прямой доступ к стеку}
+
+\begin{mathpar}
+  \inferrule
+    {\Delta;\cdot\vdash A\type}
+    {\Delta;\cdot\vdash *A\type}
+    \textsc{$*$-F} \and
+  \inferrule
+    {\Delta;\cdot\vdash r:*A}
+    {\Delta;\cdot\vdash \access r \; \type}
+    \textsc{$\access$-F} \and
+  \inferrule
+    {\Delta;\cdot\vdash C\type \\
+    \Delta;\Xi\vdash a:A \\
+    \Delta,r:*A;\Xi',l:\access r \vdash c:C\otimes\access r}
+    {\Delta;\Xi,\Xi'\vdash\letin{!r\otimes l}{*a}{c}:C}
+    \textsc{StackVar} \and
+  \inferrule
+    {\Delta;\Xi,x:A\vdash t:A\otimes C}
+    {\Delta,r:*A;\Xi,l:\access r \vdash
+    \mathrm{modify}_r\;l\;\mathrm{with}\;(x \mapsto t):C\otimes\access r}
+    \textsc{Modify}
+\end{mathpar}
+
+\subsection{Прямой доступ к куче}
+
+\begin{mathpar}
+  \inferrule{ }{\Delta;\cdot\vdash\alloc\type}\textsc{$\alloc$-F} \and
+  \inferrule
+    {\Delta;\Xi\vdash t:\tau}
+    {\Delta;\Xi,a:\alloc\vdash
+      \mathrm{new}_a\;t:\Sigma_{!r:!*\tau} \access r \otimes \alloc}
+    \textsc{New} \and
+  \inferrule
+    {\Delta;\Xi\vdash r:*\tau \\ \Delta,r:*\tau;\Xi'\vdash l:\access r}
+    {\Delta;\Xi,\Xi',a:\alloc\vdash\mathrm{free}_{r,a}\;l:A\otimes\alloc}
+    \textsc{Free}
+\end{mathpar}
+
+\section{Защищённая рекурсия}
+
+\section{Исчисление указателей}
+
+\subsection{Логический фреймворк}
+
+\begin{mathpar}
+  \inferrule
+    {\Delta;\cdot\vdash A \Rightarrow \type_i}
+    {\Delta;\cdot\vdash \triangleright A \Rightarrow \type_i}
+    \textsc{$\triangleright$-F} \and
+  \inferrule
+    {\Delta,*\triangleright X:\type_0;\cdot\vdash F \Rightarrow \type_0}
+    {\Delta;\cdot\vdash\mu X.F \Rightarrow \type_0}
+    \textsc{$\mu$-F}
+\end{mathpar}
+
+\subsection{Метатеоремы}
+
+\subsection{Алгоритм частичной типизации}
+
+\section{Дальнейшие расширения}
+
+\subsection{Строковый полиморфизм}
+
+\subsection{Полиморфизм уровней}
+
+\subsection{Аллокации арен}
+
+\subsection{Многопоточное исполнение и модель памяти}
+
+\subsection{Двухуровневая система типов}
+
+\section{Заключение}
+
+\printbibliography
+
+\end{document}

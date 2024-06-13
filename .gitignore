@@ -12,3 +12,4 @@ papers/*.synctex.gz
 papers/*.toc
 papers/*.vrb
 papers/*.bcf
+papers/*.run.xml

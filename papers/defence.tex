@@ -1,0 +1,124 @@
+\documentclass{beamer}
+\usetheme{CambridgeUS}
+\usecolortheme{seahorse}
+\setbeamertemplate{navigation symbols}{}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+
+\usepackage{mathpartir,stmaryrd}
+\DeclareMathOperator{\elim}{elim}
+\DeclareMathOperator{\type}{type}
+\newcommand{\letin}[3]{\operatorname{let}\,#1=#2\,\operatorname{in}\,#3}
+
+\title[DTSPL]{Системный язык программирования с зависимыми типами}
+\author[Соколов П.П.]{Соколов П.П.\texorpdfstring{\\[0.3em]}{}
+  {\small Научный руководитель Кузнецов С.Л.}}
+\institute{МФТИ}
+\date{21 июня 2024}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}{Мотивация}
+  \begin{block}{Требования к системному программированию}
+    \begin{minipage}[t]{0.48\linewidth}
+    \begin{itemize}
+      \item корректность;
+      \item быстродействие;
+      \item экономность по памяти;
+    \end{itemize} 
+    \end{minipage}
+    \begin{minipage}[t]{0.48\linewidth}
+    \begin{itemize}
+      \item низкая энергозатратность;
+      \item безопасность времени исполнения.
+    \end{itemize}
+    \end{minipage}
+  \end{block}
+  \begin{block}{Существующие СЯП}
+  \begin{center}
+  C/C++\qquad Zig\qquad Rust\qquad ATS\qquad \ldots
+  \end{center}
+  \end{block}
+\end{frame}
+
+\begin{frame}{Система типов Мартина-Лёфа}
+  \begin{block}{Логические суждения}
+  \begin{center}
+  \begin{tabular}{rl}
+    $\Gamma \vdash \tau \type$ & Формулировка типов \\
+    $\Gamma \vdash t : \tau$ & Введение и устранение термов \\
+    $\Gamma \vdash \sigma \equiv \tau$ & Равенство типов \\
+    $\Gamma \vdash t \equiv u : t$ & Равенство термов \\
+    $\Gamma \vdash$ & Корректность контекста
+  \end{tabular}
+  \end{center}
+  \end{block}
+  \begin{block}{Важнейшие правила вывода}
+  \begin{mathpar}
+    \inferrule
+      {\Gamma,x:\sigma\vdash t:\tau}
+      {\Gamma\vdash\lambda(x:\sigma).t:\Pi_{x:\sigma}\tau}\and
+    \inferrule
+      {\Gamma\vdash f:\Pi_{x:\sigma}\tau \\ \Gamma\vdash t:\sigma}
+      {\Gamma\vdash f t:\tau[t/x]}\and
+    \inferrule
+      {\Gamma\vdash t:\mathbb{N}}
+      {\Gamma\vdash S t:\mathbb{N}}\and
+    \inferrule
+      {\vdash t:\mathbb{N}
+      \\x:\mathbb{N}\vdash\sigma\type
+      \\\vdash t_0:\sigma[0/x]
+      \\x:\mathbb{N},h:\sigma\vdash t_S:\sigma[S x/x]}
+      {\vdash\elim^\mathbb{N}_{x.\sigma}t(0\Mapsto t_0;S x,h\Mapsto t_S)
+        :\sigma[t/x]}
+  \end{mathpar}
+  \end{block}
+\end{frame}
+
+\begin{frame}{Линейная система типов с зависимыми типами}
+  \begin{block}{Логические суждения}
+  \begin{center}
+  \begin{tabular}{rl}
+    $\Delta; \Xi \vdash$ & Корректность контекста \\
+    $\Delta; \cdot \vdash \tau \type$ & Формулировка типов \\
+    $\Delta; \Xi \vdash t: \tau$ & Введение и устранение термов \\
+    \ldots & Равенства контекстов, типов, термов
+  \end{tabular}
+  \end{center}
+  \end{block}
+  \begin{block}{Характерные правила вывода}
+  \begin{mathpar}
+    \inferrule
+      {\vdash \Delta;\cdot\\(x:\tau)\in\Delta}
+      {\Delta;\cdot\vdash x:\tau}\and
+    \inferrule
+      {\Delta;\cdot\vdash t:\sigma\\\Delta;\Xi\vdash u:\tau[t / x]}
+      {\Delta;\Xi\vdash\;!t\otimes u:\Sigma_{!x:!\sigma}\tau}\and
+    \inferrule
+      {\Delta;\cdot\vdash\rho\type\\
+      \Delta;\Xi\vdash t:\Sigma_{!x:!\sigma}\tau\\
+      \Delta,x:\sigma;\Xi',y:\tau\vdash r:\rho}
+      {\Delta;\Xi,\Xi'\vdash\letin{!x\otimes y}{t}{r}:\rho}
+  \end{mathpar}
+  \end{block}
+\end{frame}
+
+\begin{frame}{Система типов с часами}
+\end{frame}
+
+\begin{frame}{Итоговое исчисление}
+\end{frame}
+
+\begin{frame}{Метатеоремы}
+\end{frame}
+
+\begin{frame}{Дальнейшие расширения}
+\end{frame}
+
+\begin{frame}{Заключение}
+\end{frame}
+
+\end{document}

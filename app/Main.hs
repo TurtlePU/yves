@@ -1,4 +1,7 @@
 module Main where
 
+import System.IO (IO)
+import System.IO qualified as IO
+
 main :: IO ()
-main = putStrLn "Hello, Haskell!"
+main = IO.putStrLn "Hello, Haskell!"

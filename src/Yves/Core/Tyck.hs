@@ -14,10 +14,11 @@ import Data.Function (($), (.))
 import Data.Functor (Functor (..), (<$>))
 import Data.Maybe (Maybe)
 import Data.Maybe qualified as Maybe
-import Data.Ord qualified as Ord
 import Data.Traversable (Traversable (..))
-import Yves.Core.TermF (Level, TermF (..))
-import Prelude qualified as Enum
+import Yves.Core.Level (Level)
+import Yves.Core.Level qualified as Level
+import Yves.Core.TermF (TermF (..))
+import Prelude qualified
 
 data YTerm v = YTVar v | YTTerm (TermF (YTerm (Maybe v)) (YTerm v))
 
@@ -96,17 +97,17 @@ var = pure
 infix 4 <:
 
 (<:) :: YType v -> YType v -> Bool
-(<:) = _
+(<:) = Prelude.error "TODO"
 
 synthesizeF ::
   TermF (YTerm (Maybe v), YType v -> Maybe (YType (Maybe v))) (YTerm v, YType v) ->
   Maybe (YType v)
 synthesizeF = \case
-  TypeF l -> pure $ YTType (Enum.succ l)
+  TypeF l -> pure $ YTType (Level.succ l)
   PiF {..} -> do
     YTType l <- pure (typeOf pfAlpha)
     YTType l' <- typeOf pfBeta (valueOf pfAlpha)
-    return $ YTType (l `Ord.max` l')
+    return $ YTType (l `Level.max` l')
   AbsF {..} -> do
     YTType _ <- pure (typeOf absFAlpha)
     let alpha = valueOf absFAlpha
@@ -120,7 +121,7 @@ synthesizeF = \case
   SigmaF {..} -> do
     YTType l <- pure (typeOf sfAlpha)
     YTType l' <- typeOf sfBeta (valueOf sfAlpha)
-    return $ YTType (l `Ord.max` l')
+    return $ YTType (l `Level.max` l')
   PairF {..} -> do
     let alpha = typeOf pfFst
     YTType _ <- typeOf pfBeta alpha
@@ -165,7 +166,8 @@ synthesizeF = \case
     YTType _ <- typeOf jfGamma $ alpha :*: extType
     let gamma = valueOf jfGamma
         -- _: _, x: a |- (y: a) * (x = y)
-        extType' = extType >>= \case
+        extType' =
+          extType >>= \case
             Maybe.Nothing -> var here
             Maybe.Just v -> var (there (there v))
         -- x: a |- G[s:=(x,(x,refl))]
@@ -184,7 +186,7 @@ synthesizeF = \case
   WF {..} -> do
     YTType l <- pure (typeOf wfAlpha)
     YTType l' <- typeOf wfBeta (valueOf wfAlpha)
-    return $ YTType (l `Ord.max` l')
+    return $ YTType (l `Level.max` l')
   TreeF {..} -> do
     let alpha = typeOf tfRoot
     YTType _ <- typeOf tfBeta alpha
@@ -207,9 +209,10 @@ synthesizeF = \case
         -- root: a, subt: B(root) -> W |- (arg: B(root)) -> G(subt(arg))
         indHypType = fmap there beta :~>: gammaSA
         -- root: a, subt: B(root) -> W, arg: B(root) |- G(subt(arg))
-        gammaSA = gamma >>= \case
-                   Maybe.Nothing -> var (there here) :@: var here
-                   Maybe.Just v -> var . there $ there (there v)
+        gammaSA =
+          gamma >>= \case
+            Maybe.Nothing -> var (there here) :@: var here
+            Maybe.Just v -> var . there $ there (there v)
     -- should be
     -- s: stepArgType |- G(tree(B, fst s, fst (snd s)))
     -- in fact is

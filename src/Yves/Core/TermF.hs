@@ -1,9 +1,7 @@
 module Yves.Core.TermF where
 
 import Data.Bool (Bool)
-import Numeric.Natural (Natural)
-
-type Level = Natural
+import Yves.Core.Level (Level)
 
 data TermF s t
   = TypeF {tfLevel :: !Level}

@@ -20,7 +20,7 @@ common options
 
 library
     import:          options
-    exposed-modules: Yves.Core.TermF, Yves.Core.Tyck
+    exposed-modules: Yves.Core.Level, Yves.Core.TermF, Yves.Core.Tyck
     build-depends:   base ^>=4.18
     hs-source-dirs:  src
 

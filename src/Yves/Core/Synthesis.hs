@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Yves.Core.Tyck where
+module Yves.Core.Synthesis (synthesizeF) where
 
 import Control.Applicative (Applicative (..))
 import Control.Monad (Monad (..))
@@ -9,26 +9,20 @@ import Control.Monad qualified as Monad
 import Control.Monad.Scoped.Free ((@))
 import Control.Monad.Scoped.Free.In (In (..))
 import Control.Monad.Scoped.Free.In qualified as In
-import Data.Bool (Bool)
 import Data.Bool qualified as Bool
 import Data.Function (($), (.))
 import Data.Functor (Functor (..), (<$>))
 import Data.Maybe (Maybe)
 import Data.Traversable (Traversable (..))
 import Yves.Core.Level qualified as Level
+import Yves.Core.Subtyping ((<:))
 import Yves.Core.YTerm
-import Prelude qualified
 
 typeOf :: (a, b) -> b
 typeOf (_, t) = t
 
 valueOf :: (a, b) -> a
 valueOf (v, _) = v
-
-infix 4 <:
-
-(<:) :: YType v -> YType v -> Bool
-(<:) = Prelude.error "TODO"
 
 synthesizeF ::
   TermF (YTerm (In v), YType v -> Maybe (YType (In v))) (YTerm v, YType v) ->

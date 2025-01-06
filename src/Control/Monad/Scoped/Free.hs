@@ -3,6 +3,8 @@ module Control.Monad.Scoped.Free where
 import Control.Applicative (Applicative (..))
 import Control.Monad (Monad (..))
 import Control.Monad qualified as Monad
+import Control.Monad.Scoped.Free.In (In)
+import Control.Monad.Scoped.Free.In qualified as In
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Bitraversable (Bitraversable (..))
@@ -10,12 +12,15 @@ import Data.Foldable (Foldable (..))
 import Data.Function (($), (.))
 import Data.Functor (Functor (..), (<$>))
 import Data.Traversable (Traversable (..))
-import Control.Monad.Scoped.Free.In (In)
-import Control.Monad.Scoped.Free.In qualified as In
 
 data Free b v
   = FVar v
   | FTerm {fterm :: b (Free b (In v)) (Free b v)}
+
+infix 9 @
+
+(@) :: (Bifunctor b) => Free b (In v) -> Free b v -> Free b v
+f @ t = f >>= In.elim t pure
 
 instance (Bifunctor b) => Functor (Free b) where
   fmap f (FVar v) = FVar (f v)

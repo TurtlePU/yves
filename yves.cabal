@@ -25,7 +25,8 @@ library
       Control.Monad.Scoped.Free.In,
       Yves.Core.Level,
       Yves.Core.TermF,
-      Yves.Core.Tyck
+      Yves.Core.Tyck,
+      Yves.Core.YTerm
     build-depends:   base ^>=4.18, bifunctors
     hs-source-dirs:  src
 

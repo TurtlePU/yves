@@ -15,7 +15,7 @@ data TermF s t
   | FstF {ffPair :: t}
   | SndF {sfPair :: t}
   | WF {wfAlpha :: t, wfBeta :: s}
-  | TreeF {tfBeta :: s, tfRoot :: t, tfSubtr :: s}
+  | TreeF {tfBeta :: s, tfRoot :: t, tfSubtr :: t}
   | WRecF {wrfGamma :: s, wrfElim :: t, wrfStep :: s}
   | BoolTypeF
   | BoolValF {bvfValue :: !Bool}

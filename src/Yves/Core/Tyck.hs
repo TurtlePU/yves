@@ -9,12 +9,13 @@ import Control.Monad (Monad (..))
 import Control.Monad qualified as Monad
 import Control.Monad.Scoped.Free (Free)
 import Control.Monad.Scoped.Free qualified as Free
+import Control.Monad.Scoped.Free.In (In (..))
+import Control.Monad.Scoped.Free.In qualified as In
 import Data.Bool (Bool)
 import Data.Bool qualified as Bool
 import Data.Function (($), (.))
 import Data.Functor (Functor (..), (<$>))
 import Data.Maybe (Maybe)
-import Data.Maybe qualified as Maybe
 import Data.Traversable (Traversable (..))
 import Yves.Core.Level (Level)
 import Yves.Core.Level qualified as Level
@@ -25,15 +26,18 @@ type YTerm = Free TermF
 
 infix 9 @
 
-(@) :: YTerm (Maybe v) -> YTerm v -> YTerm v
-f @ t = f >>= Maybe.maybe t pure
+(@) :: YTerm (In v) -> YTerm v -> YTerm v
+f @ t = f >>= In.elim t pure
+
+pattern Var :: v -> Free b v
+pattern Var v = Free.FVar v
 
 pattern YTType :: Level -> YTerm v
 pattern YTType l = Free.FTerm (TypeF l)
 
 infixr 5 :~>:
 
-pattern (:~>:) :: YTerm v -> YTerm (Maybe v) -> YTerm v
+pattern (:~>:) :: YTerm v -> YTerm (In v) -> YTerm v
 pattern a :~>: b = Free.FTerm (PiF a b)
 
 pattern (:@:) :: YTerm v -> YTerm v -> YTerm v
@@ -41,10 +45,10 @@ pattern f :@: t = Free.FTerm (AppF f t)
 
 infixr 6 :*:
 
-pattern (:*:) :: YTerm v -> YTerm (Maybe v) -> YTerm v
+pattern (:*:) :: YTerm v -> YTerm (In v) -> YTerm v
 pattern a :*: b = Free.FTerm (SigmaF a b)
 
-pattern YTPair :: YTerm (Maybe v) -> YTerm v -> YTerm v -> YTerm v
+pattern YTPair :: YTerm (In v) -> YTerm v -> YTerm v -> YTerm v
 pattern YTPair b f s = Free.FTerm (PairF b f s)
 
 pattern YTFst :: YTerm v -> YTerm v
@@ -62,10 +66,10 @@ pattern YTIdType t l r = Free.FTerm (IdTypeF t l r)
 pattern YTRefl :: YTerm v -> YTerm v
 pattern YTRefl p = Free.FTerm (ReflF p)
 
-pattern YTW :: YTerm v -> YTerm (Maybe v) -> YTerm v
+pattern YTW :: YTerm v -> YTerm (In v) -> YTerm v
 pattern YTW a b = Free.FTerm (WF a b)
 
-pattern YTTree :: YTerm (Maybe v) -> YTerm v -> YTerm v -> YTerm v
+pattern YTTree :: YTerm (In v) -> YTerm v -> YTerm v -> YTerm v
 pattern YTTree b r s = Free.FTerm (TreeF b r s)
 
 type YType = YTerm
@@ -76,22 +80,13 @@ typeOf (_, t) = t
 valueOf :: (a, b) -> a
 valueOf (v, _) = v
 
-here :: Maybe v
-here = Maybe.Nothing
-
-there :: v -> Maybe v
-there = Maybe.Just
-
-var :: v -> YTerm v
-var = pure
-
 infix 4 <:
 
 (<:) :: YType v -> YType v -> Bool
 (<:) = Prelude.error "TODO"
 
 synthesizeF ::
-  TermF (YTerm (Maybe v), YType v -> Maybe (YType (Maybe v))) (YTerm v, YType v) ->
+  TermF (YTerm (In v), YType v -> Maybe (YType (In v))) (YTerm v, YType v) ->
   Maybe (YType v)
 synthesizeF = \case
   TypeF l -> pure $ YTType (Level.succ l)
@@ -146,29 +141,29 @@ synthesizeF = \case
     YTIdType alpha left right <- pure (typeOf jfElim)
     transType <- typeOf jfTrans alpha
     let -- x: a |- (y: a) * (x = y)
-        extType = fmap there alpha :*: ctxEqType
+        extType = fmap There alpha :*: ctxEqType
         -- x: a, y: a |- x = y
         ctxEqType =
           YTIdType
-            (there . there <$> alpha)
-            (var $ there here)
-            (var here)
+            (There . There <$> alpha)
+            (Var $ There Here)
+            (Var Here)
     -- s: (x: a) * (y: a) * (x = y) |- G: Type
     YTType _ <- typeOf jfGamma $ alpha :*: extType
     let gamma = valueOf jfGamma
         -- _: _, x: a |- (y: a) * (x = y)
         extType' =
           extType >>= \case
-            Maybe.Nothing -> var here
-            Maybe.Just v -> var (there (there v))
+            Here -> Var Here
+            There v -> Var (There (There v))
         -- x: a |- G[s:=(x,(x,refl))]
-        x = var here
+        x = Var Here
         onReflType =
           gamma >>= \case
-            Maybe.Nothing -> YTPair extType' x $ YTPair ctxEqType x $ YTRefl x
-            Maybe.Just v -> var (there v)
+            Here -> YTPair extType' x $ YTPair ctxEqType x $ YTRefl x
+            There v -> Var (There v)
         -- y: a |- left = y
-        onLeftType = YTIdType (there <$> alpha) (there <$> left) (var here)
+        onLeftType = YTIdType (There <$> alpha) (There <$> left) (Var Here)
         -- (left,(right,elim))
         gammaArg =
           YTPair extType left $ YTPair onLeftType right (valueOf jfElim)
@@ -186,7 +181,7 @@ synthesizeF = \case
     -- tfSubtr : B(root) -> W
     (betaAtRoot :~>: subtrType0) <- pure (typeOf tfSubtr)
     Monad.guard (beta @ valueOf tfRoot <: betaAtRoot)
-    subtrType <- sequence subtrType0
+    subtrType <- traverse In.toMaybe subtrType0
     Monad.guard (subtrType <: retType)
     return retType
   WRecF {..} -> do
@@ -196,14 +191,14 @@ synthesizeF = \case
     let -- (root: a) * (subt: B(root) -> W) * ((arg: B(root)) -> G(subt(arg)))
         stepArgType = alpha :*: subtrAndHypType
         -- root: a |- (subt: B(root) -> W) * ((arg: B(root)) -> G(subt(arg)))
-        subtrAndHypType = (beta :~>: fmap (there . there) w) :*: indHypType
+        subtrAndHypType = (beta :~>: fmap (There . There) w) :*: indHypType
         -- root: a, subt: B(root) -> W |- (arg: B(root)) -> G(subt(arg))
-        indHypType = fmap there beta :~>: gammaSA
+        indHypType = fmap There beta :~>: gammaSA
         -- root: a, subt: B(root) -> W, arg: B(root) |- G(subt(arg))
         gammaSA =
           gamma >>= \case
-            Maybe.Nothing -> var (there here) :@: var here
-            Maybe.Just v -> var . there $ there (there v)
+            Here -> Var (There Here) :@: Var Here
+            There v -> Var . There $ There (There v)
     -- should be
     -- s: stepArgType |- G(tree(B, fst s, fst (snd s)))
     -- in fact is
@@ -212,35 +207,34 @@ synthesizeF = \case
     let -- _: _, _: _, _: _, root: a |- (subt: B(root) -> W) * ((arg: B(root)) -> G(subt(arg)))
         sahType''' =
           subtrAndHypType >>= \case
-            Maybe.Nothing -> var here
-            Maybe.Just v -> var . there . there $ there (there v)
+            Here -> Var Here
+            There v -> Var . There . There $ There (There v)
         -- root: a, _: _, _: _, subt: B(root) -> W |- (arg: B(root)) -> G(subt(arg))
         hypType'' =
           indHypType >>= \case
-            Maybe.Nothing -> var here
-            Maybe.Just Maybe.Nothing -> var . there $ there (there here)
-            Maybe.Just (Maybe.Just v) -> var . there . there $ there (there v)
+            Here -> Var Here
+            There v -> Var . There $ There (There v)
         -- should be
         -- root: a, subt: B(root) -> W, _: _ |- G(tree(B, root, subst))
         -- in fact is
         -- root: a, subt: B(root) -> W, hyp: hypType'' |- H(root,(subt,hyp))
         stepType''' =
           stepType0 >>= \case
-            Maybe.Nothing ->
-              YTPair sahType''' (var . there $ there here) $
-                YTPair hypType'' (var $ there here) (var here)
-            Maybe.Just v -> var . there $ there (there v)
+            Here ->
+              YTPair sahType''' (Var . There $ There Here) $
+                YTPair hypType'' (Var $ There Here) (Var Here)
+            There v -> Var . There $ There (There v)
         -- _: _, _: _, root: a |- B: Type
         beta'' =
           beta >>= \case
-            Maybe.Nothing -> var here
-            Maybe.Just v -> var . there $ there (there v)
+            Here -> Var Here
+            There v -> Var . There $ There (There v)
         -- root: a, subt: B(root) -> W |- G(tree(B, root, subt))
         gamma' =
           gamma >>= \case
-            Maybe.Nothing -> YTTree beta'' (var $ there here) (var here)
-            Maybe.Just v -> var $ there (there v)
+            Here -> YTTree beta'' (Var $ There Here) (Var Here)
+            There v -> Var $ There (There v)
     -- root: a, subt: B(root) -> W |- ???
-    stepType <- sequence stepType'''
+    stepType <- traverse In.toMaybe stepType'''
     Monad.guard (stepType <: gamma')
     return (gamma @ valueOf wrfElim)

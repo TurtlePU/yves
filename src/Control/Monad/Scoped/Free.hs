@@ -9,13 +9,13 @@ import Data.Bitraversable (Bitraversable (..))
 import Data.Foldable (Foldable (..))
 import Data.Function (($), (.))
 import Data.Functor (Functor (..), (<$>))
-import Data.Maybe (Maybe)
-import Data.Maybe qualified as Maybe
 import Data.Traversable (Traversable (..))
+import Control.Monad.Scoped.Free.In (In)
+import Control.Monad.Scoped.Free.In qualified as In
 
 data Free b v
   = FVar v
-  | FTerm {fterm :: b (Free b (Maybe v)) (Free b v)}
+  | FTerm {fterm :: b (Free b (In v)) (Free b v)}
 
 instance (Bifunctor b) => Functor (Free b) where
   fmap f (FVar v) = FVar (f v)
@@ -30,7 +30,7 @@ instance (Bifunctor b) => Monad (Free b) where
   FTerm t >>= f =
     FTerm $
       bimap
-        (>>= Maybe.maybe (FVar Maybe.Nothing) (fmap Maybe.Just . f))
+        (>>= In.elim (FVar In.Here) (fmap In.There . f))
         (>>= f)
         t
 

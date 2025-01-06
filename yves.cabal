@@ -24,6 +24,7 @@ library
       Control.Monad.Scoped.Free,
       Control.Monad.Scoped.Free.In,
       Yves.Core.Evaluation,
+      Yves.Core.Inference,
       Yves.Core.Level,
       Yves.Core.Subtyping,
       Yves.Core.Synthesis,

@@ -33,19 +33,6 @@ teardown vf tf = go
     go (FVar v) = vf v
     go (FTerm t) = tf $ bimap go go t
 
-teardownM ::
-  forall b m f v.
-  (Bitraversable b, Monad m) =>
-  (forall w. w -> m (f w)) ->
-  (forall w. b (f (In w)) (f w) -> m (f w)) ->
-  Free b v ->
-  m (f v)
-teardownM vf tf = go
-  where
-    go :: forall w. Free b w -> m (f w)
-    go (FVar v) = vf v
-    go (FTerm t) = bitraverse go go t >>= tf
-
 infix 9 @
 
 (@) :: (Bifunctor b) => Free b (In v) -> Free b v -> Free b v

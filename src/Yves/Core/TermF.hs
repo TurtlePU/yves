@@ -9,14 +9,17 @@ data TermF s t
   = TypeF {tfLevel :: !Level}
   | PiF {pfAlpha :: t, pfBeta :: s}
   | AbsF {absFAlpha :: t, absFBody :: s}
-  | AppF {appfFun :: t, appfArg :: t}
+  | AppF {appfFun, appfArg :: t}
   | SigmaF {sfAlpha :: t, sfBeta :: s}
-  | PairF {pfBeta :: s, pfFst :: t, pfSnd :: t}
+  | PairF {pfBeta :: s, pfFst, pfSnd :: t}
   | FstF {ffPair :: t}
   | SndF {sfPair :: t}
-  | WF {wfAlpha :: t, wfBeta :: s}
-  | TreeF {tfBeta :: s, tfRoot :: t, tfSubtr :: t}
-  | WRecF {wrfGamma :: s, wrfElim :: t, wrfStep :: s}
   | BoolTypeF
   | BoolValF {bvfValue :: !Bool}
-  | IfF {ifGamma :: s, ifCond :: t, ifThen :: t, ifElse :: t}
+  | IfF {ifGamma :: s, ifCond, ifThen, ifElse :: t}
+  | IdTypeF {itfAlpha, itfLeft, itfRight :: t}
+  | ReflF {rfPoint :: t}
+  | JF {jfGamma :: s, jfElim :: t, jfTrans :: s}
+  | WF {wfAlpha :: t, wfBeta :: s}
+  | TreeF {tfBeta :: s, tfRoot, tfSubtr :: t}
+  | WRecF {wrfGamma :: s, wrfElim :: t, wrfStep :: s}

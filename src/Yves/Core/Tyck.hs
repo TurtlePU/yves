@@ -7,9 +7,10 @@ module Yves.Core.Tyck where
 import Control.Applicative (Applicative (..))
 import Control.Monad (Monad (..))
 import Control.Monad qualified as Monad
+import Control.Monad.Scoped.Free (Free)
+import Control.Monad.Scoped.Free qualified as Free
 import Data.Bool (Bool)
 import Data.Bool qualified as Bool
-import Data.Foldable (Foldable (..))
 import Data.Function (($), (.))
 import Data.Functor (Functor (..), (<$>))
 import Data.Maybe (Maybe)
@@ -20,17 +21,7 @@ import Yves.Core.Level qualified as Level
 import Yves.Core.TermF (TermF (..))
 import Prelude qualified
 
-data YTerm v = YTVar v | YTTerm (TermF (YTerm (Maybe v)) (YTerm v))
-
-instance Functor YTerm
-
-instance Applicative YTerm
-
-instance Monad YTerm
-
-instance Foldable YTerm
-
-instance Traversable YTerm
+type YTerm = Free TermF
 
 infix 9 @
 
@@ -38,44 +29,44 @@ infix 9 @
 f @ t = f >>= Maybe.maybe t pure
 
 pattern YTType :: Level -> YTerm v
-pattern YTType l = YTTerm (TypeF l)
+pattern YTType l = Free.FTerm (TypeF l)
 
 infixr 5 :~>:
 
 pattern (:~>:) :: YTerm v -> YTerm (Maybe v) -> YTerm v
-pattern a :~>: b = YTTerm (PiF a b)
+pattern a :~>: b = Free.FTerm (PiF a b)
 
 pattern (:@:) :: YTerm v -> YTerm v -> YTerm v
-pattern f :@: t = YTTerm (AppF f t)
+pattern f :@: t = Free.FTerm (AppF f t)
 
 infixr 6 :*:
 
 pattern (:*:) :: YTerm v -> YTerm (Maybe v) -> YTerm v
-pattern a :*: b = YTTerm (SigmaF a b)
+pattern a :*: b = Free.FTerm (SigmaF a b)
 
 pattern YTPair :: YTerm (Maybe v) -> YTerm v -> YTerm v -> YTerm v
-pattern YTPair b f s = YTTerm (PairF b f s)
+pattern YTPair b f s = Free.FTerm (PairF b f s)
 
 pattern YTFst :: YTerm v -> YTerm v
-pattern YTFst p = YTTerm (FstF p)
+pattern YTFst p = Free.FTerm (FstF p)
 
 pattern YTBool :: YTerm v
-pattern YTBool = YTTerm BoolTypeF
+pattern YTBool = Free.FTerm BoolTypeF
 
 pattern YTBValue :: Bool -> YTerm v
-pattern YTBValue b = YTTerm (BoolValF b)
+pattern YTBValue b = Free.FTerm (BoolValF b)
 
 pattern YTIdType :: YTerm v -> YTerm v -> YTerm v -> YTerm v
-pattern YTIdType t l r = YTTerm (IdTypeF t l r)
+pattern YTIdType t l r = Free.FTerm (IdTypeF t l r)
 
 pattern YTRefl :: YTerm v -> YTerm v
-pattern YTRefl p = YTTerm (ReflF p)
+pattern YTRefl p = Free.FTerm (ReflF p)
 
 pattern YTW :: YTerm v -> YTerm (Maybe v) -> YTerm v
-pattern YTW a b = YTTerm (WF a b)
+pattern YTW a b = Free.FTerm (WF a b)
 
 pattern YTTree :: YTerm (Maybe v) -> YTerm v -> YTerm v -> YTerm v
-pattern YTTree b r s = YTTerm (TreeF b r s)
+pattern YTTree b r s = Free.FTerm (TreeF b r s)
 
 type YType = YTerm
 

@@ -1,7 +1,13 @@
+{-# LANGUAGE DeriveFunctor #-}
+
 module Yves.Core.TermF where
 
+import Data.Bifunctor (Bifunctor)
 import Data.Bool (Bool)
+import Data.Functor (Functor)
 import Yves.Core.Level (Level)
+import Data.Bifoldable (Bifoldable)
+import Data.Bitraversable (Bitraversable)
 
 data TermF s t
   = TypeF {tfLevel :: !Level}
@@ -21,3 +27,10 @@ data TermF s t
   | WF {wfAlpha :: t, wfBeta :: s}
   | TreeF {tfBeta :: s, tfRoot, tfSubtr :: t}
   | WRecF {wrfGamma :: s, wrfElim :: t, wrfStep :: s}
+  deriving (Functor)
+
+instance Bifunctor TermF
+
+instance Bifoldable TermF
+
+instance Bitraversable TermF

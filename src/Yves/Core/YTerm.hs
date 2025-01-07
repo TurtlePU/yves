@@ -22,6 +22,9 @@ infixr 5 :~>:
 pattern (:~>:) :: YTerm v -> YTerm (In v) -> YTerm v
 pattern a :~>: b = Free.FTerm (PiF a b)
 
+pattern YTAbs :: Free TermF v -> Free TermF (In v) -> Free TermF v
+pattern YTAbs b f = Free.FTerm (AbsF b f)
+
 pattern (:@:) :: YTerm v -> YTerm v -> YTerm v
 pattern f :@: t = Free.FTerm (AppF f t)
 
@@ -53,5 +56,8 @@ pattern YTW a b = Free.FTerm (WF a b)
 
 pattern YTTree :: YTerm (In v) -> YTerm v -> YTerm v -> YTerm v
 pattern YTTree b r s = Free.FTerm (TreeF b r s)
+
+pattern YTWRec :: YTerm (In v) -> YTerm v -> YTerm (In v) -> YTerm v
+pattern YTWRec g e s = Free.FTerm (WRecF g e s)
 
 type YType = YTerm

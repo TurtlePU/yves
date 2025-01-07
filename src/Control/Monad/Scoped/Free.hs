@@ -1,5 +1,8 @@
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Control.Monad.Scoped.Free where
 
@@ -11,6 +14,7 @@ import Control.Monad.Scoped.Free.In qualified as In
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Bitraversable (Bitraversable (..))
+import Data.Eq (Eq)
 import Data.Foldable (Foldable (..))
 import Data.Function (($), (.))
 import Data.Functor (Functor (..), (<$>))
@@ -19,6 +23,8 @@ import Data.Traversable (Traversable (..))
 data Free b v
   = FVar v
   | FTerm {fterm :: b (Free b (In v)) (Free b v)}
+
+deriving instance (Eq v, forall p q. (Eq p, Eq q) => Eq (b p q)) => Eq (Free b v)
 
 teardown ::
   forall b f v.

@@ -10,6 +10,7 @@ import Control.Monad.Scoped.Free ((@))
 import Control.Monad.Scoped.Free.In (In (..))
 import Control.Monad.Scoped.Free.In qualified as In
 import Data.Bool qualified as Bool
+import Data.Eq (Eq)
 import Data.Function (($), (.))
 import Data.Functor (Functor (..), (<$>))
 import Data.Maybe (Maybe)
@@ -25,6 +26,7 @@ valueOf :: (a, b) -> a
 valueOf (v, _) = v
 
 synthesizeF ::
+  (Eq v) =>
   TermF (YTerm (In v), YType v -> Maybe (YType (In v))) (YTerm v, YType v) ->
   Maybe (YType v)
 synthesizeF = \case
@@ -143,12 +145,14 @@ synthesizeF = \case
     -- in fact is
     -- s: stepArgType |- H(s)
     stepType0 <- typeOf wrfStep stepArgType
-    let -- _: _, _: _, _: _, root: a |- (subt: B(root) -> W) * ((arg: B(root)) -> G(subt(arg)))
+    let -- _: _, _: _, _: _, root: a |-
+        -- (subt: B(root) -> W) * ((arg: B(root)) -> G(subt(arg)))
         sahType''' =
           subtrAndHypType >>= \case
             Here -> Var Here
             There v -> Var . There . There $ There (There v)
-        -- root: a, _: _, _: _, subt: B(root) -> W |- (arg: B(root)) -> G(subt(arg))
+        -- root: a, _: _, _: _, subt: B(root) -> W |-
+        -- (arg: B(root)) -> G(subt(arg))
         hypType'' =
           indHypType >>= \case
             Here -> Var Here

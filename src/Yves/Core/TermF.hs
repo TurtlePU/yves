@@ -5,6 +5,7 @@ module Yves.Core.TermF where
 
 import Data.Bifunctor.TH qualified as TH
 import Data.Bool (Bool)
+import Data.Eq (Eq)
 import Data.Functor (Functor)
 import Yves.Core.Level (Level)
 
@@ -26,7 +27,7 @@ data TermF s t
   | WF {wfAlpha :: t, wfBeta :: s}
   | TreeF {tfBeta :: s, tfRoot, tfSubtr :: t}
   | WRecF {wrfGamma :: s, wrfElim :: t, wrfStep :: s}
-  deriving (Functor)
+  deriving (Eq, Functor)
 
 $(TH.deriveBifunctor ''TermF)
 $(TH.deriveBifoldable ''TermF)

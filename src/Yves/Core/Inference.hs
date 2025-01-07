@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
 
 module Yves.Core.Inference (infer) where
@@ -9,6 +10,7 @@ import Control.Monad.Scoped.Free.In (In (..))
 import Control.Monad.Scoped.Free.In qualified as In
 import Data.Bifunctor (Bifunctor (..))
 import Data.Bitraversable (Bitraversable (..))
+import Data.Eq (Eq)
 import Data.Function (($), (.))
 import Data.Functor (Functor (..), (<$>))
 import Data.Maybe (Maybe)
@@ -21,13 +23,18 @@ data InferenceResult v = IResult
     inferResult :: (v -> YType v) -> Maybe (YType v)
   }
 
-infer :: (v -> YType v) -> YTerm v -> Maybe (YType v)
-infer ctx term = inferResult (Free.teardown inferVar inferTerm term) ctx
+infer :: (Eq v) => (v -> YType v) -> YTerm v -> Maybe (YType v)
+infer ctx term = inferResult (impl term) ctx
   where
-    inferVar v = IResult (Var v) (pure . ($ v))
+    impl :: (Eq w) => YTerm w -> InferenceResult w
+    impl (Free.FVar v) = IResult (Var v) (pure . ($ v))
+    impl (Free.FTerm t) = inferTerm (bimap impl impl t)
 
     inferTerm ::
-      TermF (InferenceResult (In w)) (InferenceResult w) -> InferenceResult w
+      forall w.
+      (Eq w) =>
+      TermF (InferenceResult (In w)) (InferenceResult w) ->
+      InferenceResult w
     inferTerm t =
       IResult
         { evalResult = Evaluation.evaluateF $ bimap evalResult evalResult t,

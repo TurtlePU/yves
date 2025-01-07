@@ -5,6 +5,7 @@ module Control.Monad.Scoped.Free.In where
 import Control.Applicative (Applicative (..))
 import Control.Monad (Monad (..))
 import Control.Monad qualified as Monad
+import Data.Eq (Eq)
 import Data.Foldable (Foldable (..))
 import Data.Function ((.))
 import Data.Functor (Functor (..))
@@ -12,7 +13,7 @@ import Data.Maybe (Maybe)
 import Data.Maybe qualified as Maybe
 import Data.Traversable (Traversable (..))
 
-data In v = Here | There v deriving (Functor)
+data In v = Here | There v deriving (Eq, Functor)
 
 elim :: d -> (v -> d) -> In v -> d
 elim d _ Here = d

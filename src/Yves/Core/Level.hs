@@ -1,6 +1,6 @@
-module Yves.Core.Level (Level, succ, max) where
+module Yves.Core.Level (Level, max, succ, (<=)) where
 
-import Data.Ord (max)
+import Data.Ord (max, (<=))
 import Numeric.Natural (Natural)
 import Prelude (succ)
 

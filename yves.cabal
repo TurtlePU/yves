@@ -28,7 +28,6 @@ library
       Yves.Core.Evaluation,
       Yves.Core.Inference,
       Yves.Core.Level,
-      Yves.Core.Subtyping,
       Yves.Core.Synthesis,
       Yves.Core.TermF,
       Yves.Core.YTerm,

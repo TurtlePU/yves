@@ -11,13 +11,12 @@ import Control.Monad.Scoped.Free.In (In (..))
 import Control.Monad.Scoped.Free.In qualified as In
 import Data.Bool ((&&))
 import Data.Bool qualified as Bool
-import Data.Eq (Eq)
+import Data.Eq (Eq (..))
 import Data.Function (($), (.))
 import Data.Functor (Functor (..), (<$>))
 import Data.Maybe (Maybe)
 import Data.Traversable (Traversable (..))
 import Yves.Core.Level qualified as Level
-import Yves.Core.Subtyping ((<:))
 import Yves.Core.YTerm
 
 typeOf :: (a, b) -> b
@@ -44,7 +43,7 @@ synthesizeF = \case
   AppF {..} -> do
     alpha :~>: beta <- pure (typeOf appfFun)
     let argType = typeOf appfArg
-    Monad.guard (argType <: alpha)
+    Monad.guard (argType == alpha)
     return (beta @ valueOf appfArg)
   SigmaF {..} -> do
     YTType l <- pure (typeOf sfAlpha)
@@ -55,7 +54,7 @@ synthesizeF = \case
     YTType _ <- typeOf pfBeta alpha
     let beta = valueOf pfBeta
         sndType = typeOf pfSnd
-    Monad.guard (sndType <: beta @ valueOf pfFst)
+    Monad.guard (sndType == beta @ valueOf pfFst)
     return (alpha :*: beta)
   FstF p -> do
     alpha :*: _ <- pure (typeOf p)
@@ -69,14 +68,14 @@ synthesizeF = \case
     YTBool <- pure (typeOf ifCond)
     YTType _ <- typeOf ifGamma YTBool
     let gamma = valueOf ifGamma
-    Monad.guard (typeOf ifThen <: gamma @ YTBValue Bool.True)
-    Monad.guard (typeOf ifElse <: gamma @ YTBValue Bool.False)
+    Monad.guard (typeOf ifThen == gamma @ YTBValue Bool.True)
+    Monad.guard (typeOf ifElse == gamma @ YTBValue Bool.False)
     return (gamma @ valueOf ifCond)
   IdTypeF {..} -> do
     YTType _ <- pure (typeOf itfAlpha)
     let alpha = valueOf itfAlpha
-    Monad.guard (typeOf itfLeft <: alpha)
-    Monad.guard (typeOf itfRight <: alpha)
+    Monad.guard (typeOf itfLeft == alpha)
+    Monad.guard (typeOf itfRight == alpha)
     return (YTType 0)
   ReflF p -> let v = valueOf p in pure $ YTIdType (typeOf p) v v
   JF {..} -> do
@@ -88,14 +87,14 @@ synthesizeF = \case
       pure (typeOf jfGamma)
     a' <- traverse In.toMaybe a0
     a'' <- traverse (In.toMaybe <=< In.toMaybe) a1
-    Monad.guard (alpha <: a && alpha <: a' && a <: a'' && a' <: a'')
+    Monad.guard (alpha == a && a == a' && a' == a'')
     YTAbs _ (YTAbs _ (YTAbs _ gamma)) <- pure (valueOf jfGamma)
     let onReflType =
           gamma >>= \case
             Here -> YTRefl (Var Here)
             There Here -> Var Here
             There (There v) -> Var v
-    Monad.guard (transType <: onReflType)
+    Monad.guard (transType == onReflType)
     return $
       gamma >>= \case
         Here -> valueOf jfElim
@@ -113,9 +112,9 @@ synthesizeF = \case
     YTType _ <- typeOf tfBeta alpha
     -- tfSubtr : B(root) -> W
     (betaAtRoot :~>: subtrType0) <- pure (typeOf tfSubtr)
-    Monad.guard (beta @ valueOf tfRoot <: betaAtRoot)
+    Monad.guard (beta @ valueOf tfRoot == betaAtRoot)
     subtrType <- traverse In.toMaybe subtrType0
-    Monad.guard (subtrType <: retType)
+    Monad.guard (subtrType == retType)
     return retType
   WRecF {..} -> do
     w@(YTW alpha beta) <- pure (typeOf wrfElim)
@@ -136,6 +135,6 @@ synthesizeF = \case
                 (Var $ There Here)
                 $ Var Here
             v -> Var (There v)
-    Monad.guard (alpha <: a && br <: beta && w <: w' && br' <: beta)
-    Monad.guard (hypType <: ht && st <: fmap There stepType)
+    Monad.guard (alpha == a && br == beta && w == w' && br' == beta)
+    Monad.guard (hypType == ht && st == fmap There stepType)
     return (gamma @ valueOf wrfElim)

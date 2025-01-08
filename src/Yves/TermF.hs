@@ -8,7 +8,7 @@ import Data.Bifunctor.TH qualified as TH
 import Data.Functor (Functor)
 import Yves.Core.TermF qualified as Core
 
-data SurfaceF s t = HoleF deriving (Functor)
+data SurfaceF s t = HoleF | AscrF {afTerm, afType :: t} deriving (Functor)
 
 $(TH.deriveBifunctor ''SurfaceF)
 $(TH.deriveBifoldable ''SurfaceF)

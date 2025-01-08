@@ -4,11 +4,12 @@
 module Yves.Core.Synthesis (synthesizeF) where
 
 import Control.Applicative (Applicative (..))
-import Control.Monad (Monad (..))
+import Control.Monad (Monad (..), (<=<))
 import Control.Monad qualified as Monad
 import Control.Monad.Scoped.Free ((@))
 import Control.Monad.Scoped.Free.In (In (..))
 import Control.Monad.Scoped.Free.In qualified as In
+import Data.Bool ((&&))
 import Data.Bool qualified as Bool
 import Data.Eq (Eq)
 import Data.Function (($), (.))
@@ -81,44 +82,35 @@ synthesizeF = \case
   JF {..} -> do
     YTIdType alpha left right <- pure (typeOf jfElim)
     transType <- typeOf jfTrans alpha
-    let -- x: a |- (y: a) * (x = y)
-        extType = fmap There alpha :*: ctxEqType
-        -- x: a, y: a |- x = y
-        ctxEqType =
-          YTIdType
-            (There . There <$> alpha)
-            (Var $ There Here)
-            (Var Here)
-    -- s: (x: a) * (y: a) * (x = y) |- G: Type
-    YTType _ <- typeOf jfGamma $ alpha :*: extType
-    let gamma = valueOf jfGamma
-        -- _: _, x: a |- (y: a) * (x = y)
-        extType' =
-          extType >>= \case
-            Here -> Var Here
-            There v -> Var (There (There v))
-        -- x: a |- G[s:=(x,(x,refl))]
-        x = Var Here
-        onReflType =
+    a :~>: a0
+      :~>: YTIdType a1 (Var (There Here)) (Var Here)
+      :~>: YTType _ <-
+      pure (typeOf jfGamma)
+    a' <- traverse In.toMaybe a0
+    a'' <- traverse (In.toMaybe <=< In.toMaybe) a1
+    Monad.guard (alpha <: a && alpha <: a' && a <: a'' && a' <: a'')
+    YTAbs _ (YTAbs _ (YTAbs _ gamma)) <- pure (valueOf jfGamma)
+    let onReflType =
           gamma >>= \case
-            Here -> YTPair extType' x $ YTPair ctxEqType x $ YTRefl x
-            There v -> Var (There v)
-        -- y: a |- left = y
-        onLeftType = YTIdType (There <$> alpha) (There <$> left) (Var Here)
-        -- (left,(right,elim))
-        gammaArg =
-          YTPair extType left $ YTPair onLeftType right (valueOf jfElim)
+            Here -> YTRefl (Var Here)
+            There Here -> Var Here
+            There (There v) -> Var v
     Monad.guard (transType <: onReflType)
-    return $ gamma @ gammaArg
+    return $
+      gamma >>= \case
+        Here -> valueOf jfElim
+        There Here -> right
+        There (There Here) -> left
+        There (There (There v)) -> Var v
   WF {..} -> do
     YTType l <- pure (typeOf wfAlpha)
     YTType l' <- typeOf wfBeta (valueOf wfAlpha)
     return $ YTType (l `Level.max` l')
   TreeF {..} -> do
     let alpha = typeOf tfRoot
-    YTType _ <- typeOf tfBeta alpha
-    let beta = valueOf tfBeta
+        beta = valueOf tfBeta
         retType = YTW alpha beta
+    YTType _ <- typeOf tfBeta alpha
     -- tfSubtr : B(root) -> W
     (betaAtRoot :~>: subtrType0) <- pure (typeOf tfSubtr)
     Monad.guard (beta @ valueOf tfRoot <: betaAtRoot)
@@ -127,57 +119,23 @@ synthesizeF = \case
     return retType
   WRecF {..} -> do
     w@(YTW alpha beta) <- pure (typeOf wrfElim)
-    let gamma = valueOf wrfGamma
     YTType _ <- typeOf wrfGamma w
-    let -- (root: a) * (subt: B(root) -> W) * ((arg: B(root)) -> G(subt(arg)))
-        stepArgType = alpha :*: subtrAndHypType
-        -- root: a |- (subt: B(root) -> W) * ((arg: B(root)) -> G(subt(arg)))
-        subtrAndHypType = (beta :~>: fmap (There . There) w) :*: indHypType
-        -- root: a, subt: B(root) -> W |- (arg: B(root)) -> G(subt(arg))
-        indHypType = fmap There beta :~>: gammaSA
-        -- root: a, subt: B(root) -> W, arg: B(root) |- G(subt(arg))
-        gammaSA =
+    (a :~>: (br :~>: w0) :~>: (br0 :~>: ht) :~>: st) <- pure (typeOf wrfStep)
+    w' <- traverse (In.toMaybe <=< In.toMaybe) w0
+    br' <- traverse In.toMaybe br0
+    let gamma = valueOf wrfGamma
+        hypType =
           gamma >>= \case
             Here -> Var (There Here) :@: Var Here
-            There v -> Var . There $ There (There v)
-    -- should be
-    -- s: stepArgType |- G(tree(B, fst s, fst (snd s)))
-    -- in fact is
-    -- s: stepArgType |- H(s)
-    stepType0 <- typeOf wrfStep stepArgType
-    let -- _: _, _: _, _: _, root: a |-
-        -- (subt: B(root) -> W) * ((arg: B(root)) -> G(subt(arg)))
-        sahType''' =
-          subtrAndHypType >>= \case
-            Here -> Var Here
-            There v -> Var . There . There $ There (There v)
-        -- root: a, _: _, _: _, subt: B(root) -> W |-
-        -- (arg: B(root)) -> G(subt(arg))
-        hypType'' =
-          indHypType >>= \case
-            Here -> Var Here
-            There v -> Var . There $ There (There v)
-        -- should be
-        -- root: a, subt: B(root) -> W, _: _ |- G(tree(B, root, subst))
-        -- in fact is
-        -- root: a, subt: B(root) -> W, hyp: hypType'' |- H(root,(subt,hyp))
-        stepType''' =
-          stepType0 >>= \case
-            Here ->
-              YTPair sahType''' (Var . There $ There Here) $
-                YTPair hypType'' (Var $ There Here) (Var Here)
-            There v -> Var . There $ There (There v)
-        -- _: _, _: _, root: a |- B: Type
-        beta'' =
-          beta >>= \case
-            Here -> Var Here
-            There v -> Var . There $ There (There v)
-        -- root: a, subt: B(root) -> W |- G(tree(B, root, subt))
-        gamma' =
+            v -> Var $ There (There v)
+        stepType =
           gamma >>= \case
-            Here -> YTTree beta'' (Var $ There Here) (Var Here)
-            There v -> Var $ There (There v)
-    -- root: a, subt: B(root) -> W |- ???
-    stepType <- traverse In.toMaybe stepType'''
-    Monad.guard (stepType <: gamma')
+            Here ->
+              YTTree
+                (In.elim Here (There . There . There) <$> beta)
+                (Var $ There Here)
+                $ Var Here
+            v -> Var (There v)
+    Monad.guard (alpha <: a && br <: beta && w <: w' && br' <: beta)
+    Monad.guard (hypType <: ht && st <: fmap There stepType)
     return (gamma @ valueOf wrfElim)

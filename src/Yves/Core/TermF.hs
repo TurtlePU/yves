@@ -23,10 +23,10 @@ data TermF s t
   | IfF {ifGamma :: s, ifCond, ifThen, ifElse :: t}
   | IdTypeF {itfAlpha, itfLeft, itfRight :: t}
   | ReflF {rfPoint :: t}
-  | JF {jfGamma :: s, jfElim :: t, jfTrans :: s}
+  | JF {jfGamma, jfElim :: t, jfTrans :: s}
   | WF {wfAlpha :: t, wfBeta :: s}
   | TreeF {tfBeta :: s, tfRoot, tfSubtr :: t}
-  | WRecF {wrfGamma :: s, wrfElim :: t, wrfStep :: s}
+  | WRecF {wrfGamma :: s, wrfElim, wrfStep :: t}
   deriving (Eq, Functor)
 
 $(TH.deriveBifunctor ''TermF)

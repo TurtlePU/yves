@@ -57,7 +57,7 @@ pattern YTW a b = Free.FTerm (WF a b)
 pattern YTTree :: YTerm (In v) -> YTerm v -> YTerm v -> YTerm v
 pattern YTTree b r s = Free.FTerm (TreeF b r s)
 
-pattern YTWRec :: YTerm (In v) -> YTerm v -> YTerm (In v) -> YTerm v
+pattern YTWRec :: YTerm (In v) -> YTerm v -> YTerm v -> YTerm v
 pattern YTWRec g e s = Free.FTerm (WRecF g e s)
 
 type YType = YTerm

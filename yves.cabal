@@ -23,6 +23,8 @@ library
     exposed-modules:
       Control.Monad.Scoped.Free,
       Control.Monad.Scoped.Free.In,
+      Data.Collection,
+      Data.Named,
       Yves.Core.Evaluation,
       Yves.Core.Inference,
       Yves.Core.Level,

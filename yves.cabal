@@ -31,7 +31,8 @@ library
       Yves.Core.Synthesis,
       Yves.Core.TermF,
       Yves.Core.YTerm,
-      Yves.TermF
+      Yves.TermF,
+      Yves.YTerm
     build-depends:   base ^>=4.18, bifunctors
     hs-source-dirs:  src
 

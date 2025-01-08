@@ -22,7 +22,7 @@ infixr 5 :~>:
 pattern (:~>:) :: YTerm v -> YTerm (In v) -> YTerm v
 pattern a :~>: b = Free.FTerm (PiF a b)
 
-pattern YTAbs :: Free TermF v -> Free TermF (In v) -> Free TermF v
+pattern YTAbs :: YTerm v -> YTerm (In v) -> YTerm v
 pattern YTAbs b f = Free.FTerm (AbsF b f)
 
 pattern (:@:) :: YTerm v -> YTerm v -> YTerm v

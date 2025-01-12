@@ -30,11 +30,11 @@ synthesizeF ::
   TermF (YTerm (In v), YType v -> Maybe (YType (In v))) (YTerm v, YType v) ->
   Maybe (YType v)
 synthesizeF = \case
-  TypeF l -> pure $ YTType (Level.succ l)
+  TypeF l -> pure $ YTType (Level.ofType l)
   PiF {..} -> do
     YTType l <- pure (typeOf pfAlpha)
     YTType l' <- typeOf pfBeta (valueOf pfAlpha)
-    return $ YTType (l `Level.max` l')
+    return $ YTType (l `Level.ofPi` l')
   AbsF {..} -> do
     YTType _ <- pure (typeOf absFAlpha)
     let alpha = valueOf absFAlpha
@@ -48,7 +48,7 @@ synthesizeF = \case
   SigmaF {..} -> do
     YTType l <- pure (typeOf sfAlpha)
     YTType l' <- typeOf sfBeta (valueOf sfAlpha)
-    return $ YTType (l `Level.max` l')
+    return $ YTType (l `Level.ofSigma` l')
   PairF {..} -> do
     let alpha = typeOf pfFst
     YTType _ <- typeOf pfBeta alpha
@@ -62,7 +62,7 @@ synthesizeF = \case
   SndF p -> do
     _ :*: beta <- pure (typeOf p)
     return $ beta @ YTFst (valueOf p)
-  BoolTypeF -> pure (YTType 1)
+  BoolTypeF -> pure (YTType Level.ofBool)
   BoolValF _ -> pure YTBool
   IfF {..} -> do
     YTBool <- pure (typeOf ifCond)
@@ -72,11 +72,11 @@ synthesizeF = \case
     Monad.guard (typeOf ifElse == gamma @ YTBValue Bool.False)
     return (gamma @ valueOf ifCond)
   IdTypeF {..} -> do
-    YTType _ <- pure (typeOf itfAlpha)
+    YTType l <- pure (typeOf itfAlpha)
     let alpha = valueOf itfAlpha
     Monad.guard (typeOf itfLeft == alpha)
     Monad.guard (typeOf itfRight == alpha)
-    return (YTType 0)
+    return $ YTType (Level.ofId l)
   ReflF p -> let v = valueOf p in pure $ YTIdType (typeOf p) v v
   JF {..} -> do
     YTIdType alpha left right <- pure (typeOf jfElim)
@@ -104,7 +104,7 @@ synthesizeF = \case
   WF {..} -> do
     YTType l <- pure (typeOf wfAlpha)
     YTType l' <- typeOf wfBeta (valueOf wfAlpha)
-    return $ YTType (l `Level.max` l')
+    return $ YTType (l `Level.ofW` l')
   TreeF {..} -> do
     let alpha = typeOf tfRoot
         beta = valueOf tfBeta

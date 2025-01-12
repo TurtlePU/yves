@@ -14,6 +14,7 @@ class (forall v. Monoid (f v), Traversable f) => Collection f where
 
   singleton :: Key f -> v -> f v
   (?!) :: f v -> Key f -> Maybe v
+  prune :: f (Maybe v) -> f v
 
 insert :: (Collection f) => Key f -> v -> f v -> f v
 insert k v = (singleton k v <>)

@@ -18,12 +18,24 @@ import qualified Yves.Core.Level as Level
 import Control.Monad.Scoped.Free ((@))
 import qualified Yves.Unification as Unification
 
-elabInfer ::
-  (Collection s) => YTerm (Key s) v -> Elab s v (Core.YTerm v, Core.YType v)
-elabInfer = \case
-  Var x -> do
-    ty <- Reader.asks ($ x)
-    return (Core.Var x, ty)
+raise :: Core.YTerm v -> YTerm m v
+raise = _
+
+lower :: YTerm (Key s) v -> Elab s v (Core.YTerm v)
+lower = _
+
+elaborate ::
+  (Collection s) => (YTerm (Key s) v, Core.YType v) -> Elab s v (Core.YTerm v)
+elaborate = \case
+  (t, ty) -> do
+    ty' <- infer t
+    ty0 <- Unification.unify (raise ty) ty'
+    ty'' <- lower ty0
+    elaborate (t, ty'')
+
+infer :: (Collection s, Key s ~ m) => YTerm m v -> Elab s v (YType m v)
+infer = \case
+  Var x -> Reader.asks ($ x)
   MetaVar m -> do
     Maybe.Just sol <- State.gets (?! m)
     return sol
@@ -41,11 +53,3 @@ elabInfer = \case
     t' <- elabCheck (t, a)
     return (f' Core.:@: t', b @ t')
   _ -> Monad.fail ""
-
-elabCheck ::
-  (Collection s) => (YTerm (Key s) v, Core.YType v) -> Elab s v (Core.YTerm v)
-elabCheck = \case
-  (t, ty) -> do
-    (t', ty') <- elabInfer t
-    Unification.unify ty ty'
-    return t'

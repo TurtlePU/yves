@@ -8,10 +8,13 @@ import Data.Bifunctor.TH qualified as TH
 import Data.Functor (Functor)
 import Yves.Core.TermF qualified as Core
 
-data SurfaceF s t = AscrF {afTerm, afType :: t} deriving (Functor)
+data SurfaceF m s t
+  = AscrF {afTerm, afType :: t}
+  | MetaVarF m
+  deriving (Functor)
 
 $(TH.deriveBifunctor ''SurfaceF)
 $(TH.deriveBifoldable ''SurfaceF)
 $(TH.deriveBitraversable ''SurfaceF)
 
-type TermF = Sum Core.TermF SurfaceF
+type TermF m = Sum Core.TermF (SurfaceF m)

@@ -32,9 +32,7 @@ library
       Yves.Core.TermF,
       Yves.Core.YTerm,
       Yves.Elaboration,
-      Yves.Elaboration.Monad,
       Yves.TermF,
-      Yves.Unification,
       Yves.YTerm
     build-depends: base ^>=4.18, bifunctors, mtl, transformers
     hs-source-dirs:  src

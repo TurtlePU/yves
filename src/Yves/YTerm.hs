@@ -44,6 +44,9 @@ pattern YTPair b f s = Free.FTerm (Sum.L2 (Core.PairF b f s))
 pattern YTFst :: YTerm m v -> YTerm m v
 pattern YTFst p = Free.FTerm (Sum.L2 (Core.FstF p))
 
+pattern YTSnd :: YTerm m v -> YTerm m v
+pattern YTSnd p = Free.FTerm (Sum.L2 (Core.SndF p))
+
 pattern YTBool :: YTerm m v
 pattern YTBool = Free.FTerm (Sum.L2 Core.BoolTypeF)
 
@@ -55,6 +58,9 @@ pattern YTIdType a l r = Free.FTerm (Sum.L2 (Core.IdTypeF a l r))
 
 pattern YTRefl :: YTerm m v -> YTerm m v
 pattern YTRefl p = Free.FTerm (Sum.L2 (Core.ReflF p))
+
+pattern YTJ :: YTerm m v -> YTerm m v -> YTerm m (In v) -> YTerm m v
+pattern YTJ g e r = Free.FTerm (Sum.L2 (Core.JF g e r))
 
 pattern YTW :: YTerm m v -> YTerm m (In v) -> YTerm m v
 pattern YTW a b = Free.FTerm (Sum.L2 (Core.WF a b))

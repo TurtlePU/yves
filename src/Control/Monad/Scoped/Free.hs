@@ -7,7 +7,8 @@
 module Control.Monad.Scoped.Free where
 
 import Control.Applicative (Applicative (..))
-import Control.Monad (Monad (..))
+import Control.Category ((<<<))
+import Control.Monad (Monad (..), (<=<))
 import Control.Monad qualified as Monad
 import Control.Monad.Scoped.Free.In (In)
 import Control.Monad.Scoped.Free.In qualified as In
@@ -19,12 +20,16 @@ import Data.Foldable (Foldable (..))
 import Data.Function (($), (.))
 import Data.Functor (Functor (..), (<$>))
 import Data.Traversable (Traversable (..))
+import GHC.Generics ((:.:) (..))
 
 data Free b v
   = FVar v
   | FTerm {fterm :: b (Free b (In v)) (Free b v)}
 
 deriving instance (Eq v, forall p q. (Eq p, Eq q) => Eq (b p q)) => Eq (Free b v)
+
+lift :: Bifunctor b => Free b v -> Free b (In v)
+lift = fmap In.There
 
 teardown ::
   forall b f v.
@@ -38,6 +43,16 @@ teardown vf tf = go
     go :: forall w. Free b w -> f w
     go (FVar v) = vf v
     go (FTerm t) = tf $ bimap go go t
+
+teardownM ::
+  forall b m f v.
+  (Bitraversable b, Monad m) =>
+  (forall w. w -> m (f w)) ->
+  (forall w. b (f (In w)) (f w) -> m (f w)) ->
+  Free b v ->
+  m (f v)
+teardownM vf tf =
+  unComp1 . teardown (Comp1 . vf) (Comp1 <<< tf <=< bitraverse unComp1 unComp1)
 
 infix 9 @
 

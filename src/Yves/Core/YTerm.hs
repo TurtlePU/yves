@@ -39,6 +39,9 @@ pattern YTPair b f s = Free.FTerm (PairF b f s)
 pattern YTFst :: YTerm v -> YTerm v
 pattern YTFst p = Free.FTerm (FstF p)
 
+pattern YTSnd :: YTerm v -> YTerm v
+pattern YTSnd p = Free.FTerm (SndF p)
+
 pattern YTBool :: YTerm v
 pattern YTBool = Free.FTerm BoolTypeF
 
@@ -50,6 +53,9 @@ pattern YTIdType t l r = Free.FTerm (IdTypeF t l r)
 
 pattern YTRefl :: YTerm v -> YTerm v
 pattern YTRefl p = Free.FTerm (ReflF p)
+
+pattern YTJ :: YTerm v -> YTerm v -> YTerm (In v) -> YTerm v
+pattern YTJ g e r = Free.FTerm (JF g e r)
 
 pattern YTW :: YTerm v -> YTerm (In v) -> YTerm v
 pattern YTW a b = Free.FTerm (WF a b)

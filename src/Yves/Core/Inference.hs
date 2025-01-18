@@ -12,7 +12,7 @@ import Data.Bifunctor (Bifunctor (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Eq (Eq)
 import Data.Function (($), (.))
-import Data.Functor (Functor (..), (<$>))
+import Data.Functor ((<$>))
 import Data.Maybe (Maybe)
 import Yves.Core.Evaluation qualified as Evaluation
 import Yves.Core.Synthesis qualified as Synthesis
@@ -47,4 +47,4 @@ infer ctx term = inferResult (impl term) ctx
         }
 
     liftCtx :: (v -> YType v) -> YType v -> In v -> YType (In v)
-    liftCtx c ty = fmap There . In.elim ty c
+    liftCtx c ty = Free.lift . In.elim ty c

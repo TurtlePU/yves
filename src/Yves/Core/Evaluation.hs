@@ -8,7 +8,7 @@ import Control.Monad.Scoped.Free qualified as Free
 import Control.Monad.Scoped.Free.In (In (..))
 import Control.Monad.Scoped.Free.In qualified as In
 import Data.Function (($), (.))
-import Data.Functor (Functor (..), (<$>))
+import Data.Functor ((<$>))
 import Yves.Core.YTerm
 
 evaluate :: YTerm v -> YTerm v
@@ -26,8 +26,8 @@ evaluateF = \case
           YTAbs (beta @ root) $
             YTWRec
               (In.elim Here (There . There) <$> gamma)
-              (fmap There subtr :@: Var Here)
-              (There <$> rec)
+              (Free.lift subtr :@: Var Here)
+              (Free.lift rec)
      in evaluate $
           step >>= \case
             Here -> stepArg

@@ -53,6 +53,10 @@ pattern YTBool = Free.FTerm (Sum.L2 Core.BoolTypeF)
 pattern YTBValue :: Bool -> YTerm m v
 pattern YTBValue b = Free.FTerm (Sum.L2 (Core.BoolValF b))
 
+pattern YTIf ::
+  YTerm m (In v) -> YTerm m v -> YTerm m v -> YTerm m v -> YTerm m v
+pattern YTIf g c t e = Free.FTerm (Sum.L2 (Core.IfF g c t e))
+
 pattern YTIdType :: YTerm m v -> YTerm m v -> YTerm m v -> YTerm m v
 pattern YTIdType a l r = Free.FTerm (Sum.L2 (Core.IdTypeF a l r))
 

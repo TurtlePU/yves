@@ -5,7 +5,7 @@
 
 module Yves.Elaboration where
 
-import Control.Applicative (Alternative, Applicative)
+import Control.Applicative (Alternative, Applicative (..))
 import Control.Monad (Monad (..))
 import Control.Monad qualified as Monad
 import Control.Monad.Fail (MonadFail)
@@ -21,8 +21,8 @@ import Data.Bifunctor.Sum qualified as Sum
 import Data.Collection (Collection (..))
 import Data.Eq (Eq (..))
 import Data.Foldable (Foldable)
-import Data.Function (($), (.))
-import Data.Functor (Functor (..))
+import Data.Function ((.))
+import Data.Functor (Functor (..), (<$>))
 import Data.Functor.Identity (Identity (..))
 import Data.Maybe (Maybe (..))
 import Data.Traversable (Traversable (..))
@@ -85,8 +85,8 @@ scope en = Elab . (. extend en) . (scopeState .) . elab
 
 data Arg m v
   = Arg (YTerm m v)
-  | ALeft
-  | ARight
+  | AFst
+  | ASnd
   | AJ (YType m v) (YTerm m (In v))
 
 shift :: [Arg m v] -> [Arg m (In v)]
@@ -94,8 +94,8 @@ shift = fmap impl
   where
     impl :: Arg m v -> Arg m (In v)
     impl (Arg t) = Arg (Free.lift t)
-    impl ALeft = ALeft
-    impl ARight = ARight
+    impl AFst = AFst
+    impl ASnd = ASnd
     impl (AJ ty tm) = AJ (Free.lift ty) (fmap (fmap In.There) tm)
 
 solve :: YType m v -> [Arg m v] -> Core.YType v -> Elab s m v ()
@@ -105,79 +105,80 @@ bubble :: Core.YTerm v -> YTerm m v
 bubble = Free.teardown Var (Free.FTerm . Sum.L2)
 
 elaborate ::
-  (Collection s, Key s ~ m) =>
+  (Collection s, Key s ~ m, Eq v) =>
   YTerm m v ->
   [Arg m v] ->
-  Core.YType v ->
+  Maybe (Core.YType v) ->
   Elab s m v (Core.YTerm v, Core.YType v)
 elaborate (Var v) args ty = _
 elaborate (MetaVar v) args ty = _
-elaborate (YTType l) [] ty@(Core.YTType l') = do
-  Monad.guard (Level.ofType l == l')
-  return (Core.YTType l, ty)
-elaborate (a :~>: b) [] ty@(Core.YTType l) = do
-  (a', _) <- elaborate a [] ty
-  (b', _) <- scope (Nothing :? bubble a') (elaborate b [] (Core.YTType l))
-  return (a' Core.:~>: b', ty)
-elaborate (YTAbs a f) [] ty@(a' Core.:~>: b) = do
+elaborate (YTType l) [] Nothing =
+  return (Core.YTType l, Core.YTType (Level.ofType l))
+elaborate (a :~>: b) [] Nothing = do
+  (a', Core.YTType la) <- elaborate a [] Nothing
+  (b', Core.YTType lb) <- scope (Nothing :? bubble a') (elaborate b [] Nothing)
+  return (a' Core.:~>: b', Core.YTType (Level.ofPi la lb))
+elaborate (YTAbs a f) [] (Just ty@(a' Core.:~>: b)) = do
   solve a [] a'
-  (f', _) <- scope (Nothing :? bubble a') (elaborate f [] b)
+  (f', _) <- scope (Nothing :? bubble a') (elaborate f [] (Just b))
   return (Core.YTAbs a' f', ty)
 elaborate (YTAbs a f) (Arg x : args) ty = do
-  (f', ft) <- scope (Just x :? a) (elaborate f (shift args) (Free.lift ty))
-  YTType l <- infer a
-  (a', _) <- elaborate a [] (Core.YTType l)
+  (f', ft) <- scope (Just x :? a) (elaborate f (shift args) (Free.lift <$> ty))
+  (a', Core.YTType _) <- elaborate a [] Nothing
   return (Core.YTAbs a' f', a' Core.:~>: ft)
 elaborate (f :@: t) args ty = do
   (f', a Core.:~>: b) <- elaborate f (Arg t : args) ty
-  (t', _) <- elaborate t [] a
+  (t', _) <- elaborate t [] (Just a)
   return (f' Core.:@: t', b @ t')
-elaborate (a :*: b) [] ty@(Core.YTType l) = do
-  (a', _) <- elaborate a [] ty
-  (b', _) <- scope (Nothing :? bubble a') (elaborate b [] (Core.YTType l))
-  return (a' Core.:*: b', ty)
-elaborate (YTPair b f s) [] ty@(a Core.:*: b') = do
-  (f', _) <- elaborate f [] a
-  (s', _) <- elaborate s [] (b' @ f')
+elaborate (a :*: b) [] Nothing = do
+  (a', Core.YTType la) <- elaborate a [] Nothing
+  (b', Core.YTType lb) <- scope (Nothing :? bubble a') (elaborate b [] Nothing)
+  return (a' Core.:*: b', Core.YTType (Level.ofSigma la lb))
+elaborate (YTPair b f s) [] (Just ty@(a Core.:*: b')) = do
+  (f', _) <- elaborate f [] (Just a)
+  (s', _) <- elaborate s [] (Just (b' @ f'))
   scope (Just f :? bubble a) (solve b [] b')
   return (Core.YTPair b' f' s', ty)
-elaborate (YTPair _ f s) (ALeft : args) ty = do
+elaborate (YTPair _ f s) (AFst : args) ty = do
   (f', a) <- elaborate f args ty
-  b0 <- infer s
-  YTType l <- infer b0
-  (b', _) <- elaborate b0 [] (Core.YTType l)
-  (s', _) <- elaborate s [] b'
-  let b = Free.lift b'
-  return (Core.YTPair b f' s', a Core.:*: b)
-elaborate (YTPair _ f s) (ARight : args) ty = do
-  (s', b0) <- elaborate s args ty
+  (s', b0) <- elaborate s [] Nothing
   let b = Free.lift b0
-  a0 <- infer f
-  YTType l <- infer a0
-  (a, _) <- elaborate a0 [] (Core.YTType l)
-  (f', _) <- elaborate f [] a
+  return (Core.YTPair b f' s', a Core.:*: b)
+elaborate (YTPair _ f s) (ASnd : args) ty = do
+  (s', b0) <- elaborate s args ty
+  (f', a) <- elaborate f [] Nothing
+  let b = Free.lift b0
   return (Core.YTPair b f' s', a Core.:*: b)
 elaborate (YTFst p) args ty = do
-  (p', a Core.:*: _) <- elaborate p (ALeft : args) ty
+  (p', a Core.:*: _) <- elaborate p (AFst : args) ty
   return (Core.YTFst p', a)
 elaborate (YTSnd p) args ty = do
-  (p', _ Core.:*: b) <- elaborate p (ARight : args) ty
+  (p', _ Core.:*: b) <- elaborate p (ASnd : args) ty
   return (Core.YTSnd p', b @ Core.YTFst p')
-elaborate YTBool [] ty@(Core.YTType l) = do
-  Monad.guard (Level.ofBool == l)
-  return (Core.YTBool, ty)
-elaborate (YTBValue b) [] ty@Core.YTBool = return (Core.YTBValue b, ty)
-elaborate (YTIdType a x y) [] ty@(Core.YTType l) = do
-  (a', _) <- elaborate a [] $ Core.YTType (Level.perId l)
-  (x', _) <- elaborate x [] a'
-  (y', _) <- elaborate y [] a'
-  return (Core.YTIdType a' x' y', ty)
-elaborate (YTRefl x) [] (Core.YTIdType a l r) = _
+elaborate YTBool [] Nothing = return (Core.YTBool, Core.YTType Level.ofBool)
+elaborate (YTBValue b) [] (Just ty@Core.YTBool) = return (Core.YTBValue b, ty)
+elaborate (YTIf g b t e) args ty = _
+elaborate (YTIdType a x y) [] Nothing = do
+  (a', Core.YTType l) <- elaborate a [] Nothing
+  (x', _) <- elaborate x [] (Just a')
+  (y', _) <- elaborate y [] (Just a')
+  return (Core.YTIdType a' x' y', Core.YTType (Level.ofId l))
+elaborate (YTRefl x) [] (Just (Core.YTIdType a l r)) = _
 elaborate (YTRefl x) (AJ g e : args) ty = _
 elaborate (YTJ g e r) args ty = do
-  (e', Core.YTIdType a x y) <- elaborate e (AJ g r : args) ty
-  return (Core.YTJ _ e' _, _)
-elaborate _ _ _ = Monad.fail ""
-
-infer :: YTerm m v -> Elab s m v (YTerm m v)
-infer = _
+  (e', Core.YTIdType a _ _) <- elaborate e (AJ g r : args) ty
+  (g', _) <- elaborate g [] Nothing
+  (r', _) <- scope (Nothing :? bubble a) (elaborate r [] _)
+  return (Core.YTJ g' e' r', _)
+elaborate (YTW a b) [] Nothing = do
+  (a', Core.YTType la) <- elaborate a [] Nothing
+  (b', Core.YTType lb) <- scope (Nothing :? bubble a') (elaborate b [] Nothing)
+  return (Core.YTW a' b', Core.YTType (Level.ofW la lb))
+elaborate (YTTree b r s) args ty = _
+elaborate (YTRec g e s) args ty = _
+elaborate (tm :!: as) args ty = _
+elaborate tm args (Just ty) = do
+  (tm', ty') <- elaborate tm args Nothing
+  solve (bubble ty') args ty
+  return (tm', ty')
+elaborate _ _ Nothing = Monad.fail ""

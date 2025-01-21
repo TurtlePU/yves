@@ -7,10 +7,9 @@ import Prelude qualified
 
 type Level = Natural
 
-ofType, ofId, perId :: Level -> Level
+ofType, ofId :: Level -> Level
 ofType = Prelude.succ
 ofId = Function.id
-perId = Function.id
 
 ofPi, ofSigma, ofW :: Level -> Level -> Level
 ofPi = Ord.max

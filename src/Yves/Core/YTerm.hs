@@ -25,6 +25,8 @@ pattern a :~>: b = Free.FTerm (PiF a b)
 pattern YTAbs :: YTerm v -> YTerm (In v) -> YTerm v
 pattern YTAbs b f = Free.FTerm (AbsF b f)
 
+infixl 3 :@:
+
 pattern (:@:) :: YTerm v -> YTerm v -> YTerm v
 pattern f :@: t = Free.FTerm (AppF f t)
 

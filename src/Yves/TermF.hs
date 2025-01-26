@@ -10,7 +10,7 @@ import Yves.Core.TermF qualified as Core
 
 data SurfaceF m s t
   = AscrF {afTerm, afType :: t}
-  | MetaVarF m
+  | MetaVarF {mvfVar :: m, mvfArgs :: [t]}
   deriving (Functor)
 
 $(TH.deriveBifunctor ''SurfaceF)

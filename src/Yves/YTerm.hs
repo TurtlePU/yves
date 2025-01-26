@@ -16,8 +16,8 @@ type YTerm m = Free (TermF m)
 pattern Var :: v -> YTerm m v
 pattern Var v = Free.FVar v
 
-pattern MetaVar :: m -> YTerm m v
-pattern MetaVar m = Free.FTerm (Sum.R2 (MetaVarF m))
+pattern MetaVar :: m -> [YTerm m v] -> YTerm m v
+pattern MetaVar m a = Free.FTerm (Sum.R2 (MetaVarF m a))
 
 pattern YTType :: Level -> YTerm m v
 pattern YTType l = Free.FTerm (Sum.L2 (Core.TypeF l))

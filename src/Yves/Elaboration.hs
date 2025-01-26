@@ -120,10 +120,20 @@ elaborate (a :~>: b) [] Nothing = do
   (b', Core.YTType lb) <- scope (Nothing :? a) (elaborate b [] Nothing)
   (a', Core.YTType la) <- elaborate a [] Nothing
   return (a' Core.:~>: b', Core.YTType (Level.ofPi la lb))
+elaborate (YTAbs a f) [] Nothing = do
+  (f', tf) <- scope (Nothing :? a) (elaborate f [] Nothing)
+  (a', Core.YTType _) <- elaborate a [] Nothing
+  return (Core.YTAbs a' f', a' Core.:~>: tf)
 elaborate (a :*: b) [] Nothing = do
   (b', Core.YTType lb) <- scope (Nothing :? a) (elaborate b [] Nothing)
   (a', Core.YTType la) <- elaborate a [] Nothing
   return (a' Core.:*: b', Core.YTType (Level.ofSigma la lb))
+elaborate (YTPair b f s) [] Nothing = do
+  (f', a) <- elaborate f [] Nothing
+  (s', _) <- elaborate s [] (Just (b @ f))
+  (b', Core.YTType _) <-
+    scope (Just (bubble f') :? bubble a) (elaborate b [] Nothing)
+  return (Core.YTPair b' f' s', a Core.:~>: b')
 elaborate YTBool [] Nothing = return (Core.YTBool, Core.YTType Level.ofBool)
 elaborate (YTBValue b) [] Nothing = return (Core.YTBValue b, Core.YTBool)
 elaborate (YTIdType a x y) [] Nothing = do
@@ -178,7 +188,7 @@ elaborate (YTPair _ f s) (ASnd : args) ty = do
 elaborate (YTRefl x) (AJ g e : args) ty = _ -- ???
 -- Unsorted
 elaborate (Var v) args ty = _
-elaborate (MetaVar v) args ty = _
+elaborate (MetaVar v xs) args ty = _
 elaborate (YTAbs a0 f) [] (Just (a1 :~>: b)) = do
   a <- unify a0 a1
   (f', b') <- scope (Nothing :? a) (elaborate f [] (Just b))

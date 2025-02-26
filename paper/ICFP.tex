@@ -8,30 +8,10 @@
 
 \title{Bidirectional Typing for Internal Solvers Using Term Reconstruction}
 
-\author{Pavel Sokolov}
-\orcid{0009-0001-6922-2870}
-\affiliation{
-  \department{Faculty of Computer Science}
-  \institution{National Research University Higher School of Economics}
-  \city{Moscow}
-  \country{Russian Federation}
-}
-\email{ppsokolov@hse.ru}
-
-\author{Diana Kalinichenko}
-\orcid{???}
-\affiliation{
-  \institution{Jane Street}
-  \city{???}
-  \state{???}
-  \country{USA}
-}
-\email{dkalinichenko@janestreet.com}
-
 \begin{abstract}
   In this talk, we present a minimal lambda calculus with dependent types and
   bidirectional type checking which would allow internal implementation of
-  SMT solvers, without external script languages or meta\-programming features.
+  SMT solvers, without external script languages or metaprogramming features.
   For demonstration, we implement a solver for an equational theory of monoids.
 \end{abstract}
 
@@ -75,47 +55,42 @@ e.g. types of a) natural numbers; b) initial segments of natural number line
 $\underline{n}$; c) expressions in an algebraic signature with variables ranging
 over any given type. In addition, it contains a special mechanism to treat types
 as elements of special types $U_i$ called ``universes'' which we do not cover
-here. All this machinery allows us to write down a general schema of an internal
-solver of a decidable theory:
+in this section. On the other hand, MLTT can be viewed as a total functional
+programming language which allows writing down functional algorithms AND prove
+their correctness in the same language. All this machinery allows us to write
+down a general schema of an internal solver for some decidable theory:
 
 \begin{itemize}
-  \item $F : (n : \mathbb{N}) \to \mathrm{type}$ --- a dependent type of
-    formulas in a language of a theory with domain variables taken from
+  \item Let $F : (n : \mathbb{N}) \to \mathbf{type}$ be a dependent type of
+    formulas in a language of a theory with variables taken from
     $\underline{n}$;
-  \item A type $\mathcal{M}$ of models of a theory;
-  \item An embedding function
+  \item Let $\mathcal{M}$ be a type of all models of a theory;
+  \item Let $P$ be an embedding function which interprets formulas of a theory
+    as internal propositions of MLTT:
     \[
       P : (n : \mathbb{N}) \to (M : \mathcal{M})
-          \to (\mathcal{C} : \underline{n} \to M) \to F n \to \mathrm{prop}
+          \to (\mathcal{C} : \underline{n} \to M) \to F\;n \to \mathbf{prop};
     \]
-    which interprets formulas of a theory as internal propositions of MLTT;
-  \item A dependent type of proofs of validities of formulas
+  \item Then, an \textit{internal proof} $\mathrm{Prf}$ of a formula $\phi$ is a
+    proof that it holds universally, over all models and interpretations:
     \[
-      \mathrm{Prf} : (n : \mathbb{N}) \to F n \to \mathrm{type};
+      \mathrm{Prf}(n:\mathbb{N})(\phi:F\;n)\coloneq
+      (M:\mathcal{M})\to(\mathcal{C}:\underline{n}\to M)
+      \to P\;n\;M\;\mathcal{C}\;\phi
     \]
-  \item An embedding function
+  \item Let $\mathcal{D}$ be a decision function which, in fact, expresses the
+    logic of a solver inside MLTT:
     \[
-      \tau : (n : \mathbb{N}) \to (M : \mathcal{M})
-          \to (\mathcal{C} : \underline{n} \to M) \to (\phi : F n)
-          \to \mathrm{Prf} \; n \; \phi \to P \; n \; M \; \mathcal{C} \; \phi
+      \mathcal{D} : (n : \mathbb{N}) \to (\phi : F\;n) \to
+      (\mathrm{Prf}\;n\;\phi\lor(\mathrm{Prf}\;n\;\phi\to\bot));
     \]
-    which interprets proofs of validities of formulas as proofs of corresponding
-    propositions of MLTT;
-  \item A decision function
+  \item Then, we would like to define a ``wrapper'' of a type
     \[
-      \mathcal{D} : (n : \mathbb{N}) \to (\phi : F n)
-          \to \left(
-            \mathrm{Prf} \; n \; \phi \lor (\mathrm{Prf} \; n \; \phi \to \bot)
-          \right)
-    \]
-    which, in fact, expresses the logic of a solver inside MLTT;
-  \item A ``wrapper'' of a type
-    \begin{multline*}
       (n : \mathbb{N}) \to (\phi : F n) \to (\pi : \mathrm{Prf} \; n \; \phi)
-          \to (M : \mathcal{M}) \to (\mathcal{C} : \underline{n} \to M) \to\\\to
-          (\mathcal{D} \; n \; \phi = \mathrm{inl} \; \pi)
-          \to P \; n \; M \; \mathcal{C} \; \phi
-    \end{multline*}
+          \to (M : \mathcal{M}) \to (\mathcal{C} : \underline{n} \to M)
+          \to (\mathcal{D} \; n \; \phi = \mathrm{inl} \; \pi)
+          \to P \; n \; M \; \mathcal{C} \; \phi.
+    \]
     The type of a wrapper is constructed in such a way that arguments can be
     provided to it iff the decision function states that a formula is, in fact,
     valid.
@@ -126,8 +101,8 @@ problems:
 
 \begin{enumerate}
   \item A typing relation $\Gamma \vdash t : \tau$ has to be decidable;
-  \item Most of the arguments (except, maybe, for $\mathcal{C}$) of a wrapper
-    have to be inferred and do not have to be specified explicitly.
+  \item All of the wrapper's arguments (except, maybe, for $\mathcal{C}$)
+    have to be inferrable from resulting type.
 \end{enumerate}
 
 To this end, we develop a special bidirectional typing system \cite{bidir} for

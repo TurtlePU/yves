@@ -11,7 +11,7 @@ import Yves.Core.TermF (TermF (..))
 
 type YTerm = Free TermF
 
-pattern Var :: v -> Free b v
+pattern Var :: v -> YTerm v
 pattern Var v = Free.FVar v
 
 pattern YTType :: Level -> YTerm v

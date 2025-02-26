@@ -1,4 +1,5 @@
 \documentclass[manuscript,screen,review]{acmart}
+\usepackage{mathpartir}
 
 \acmConference[ICFP'25]
   {International Conference on Functional Programming}
@@ -112,6 +113,52 @@ achieved via function inversion as in $\mathrm{Haskell}^{-1}$ \cite{haskell}
 the typing relations (here, we unify $\mathcal{D} \; n \; \phi$ with
 $\mathrm{inl} \; \pi$). Note that this gives rise to general inference system
 which might have wider applications.
+
+\section{The most important inference rules}
+
+\begin{mathpar}
+\inferrule[app]
+  {\Gamma\vdash f\;\$\;t,\Delta:T}
+  {\Gamma\vdash f\;t\;\$\;\Delta:T}
+\and\inferrule[var]
+  {x:U\in\Gamma\\\Gamma\vdash U\;@\;\Delta:T}
+  {\Gamma\vdash x\;\$\;\Delta:T}
+\and\inferrule[@-pi]
+  {\Gamma;\sigma\vdash t\Leftarrow T;\tau
+  \\\Gamma;\rho\vdash U[x\coloneq t]\;@\;\Delta:V;\sigma}
+  {\Gamma;\rho\vdash(x:T)\to U\;@\;t,\Delta:V;\tau}
+\and\inferrule[@-check]
+  {\Gamma\vdash T=U\Leftarrow\mathcal{U}}
+  {\Gamma\vdash T\;@\;\cdot\Leftarrow U}
+\and\inferrule[@-infer]{ }{\Gamma\vdash T\;@\;\cdot\Rightarrow T}
+\end{mathpar}
+
+\section{All elaboration rules}
+
+\begin{mathpar}
+\inferrule[type]{ }{\Gamma\vdash\mathcal{U}_l\Rightarrow\mathcal{U}_{l+1}}
+\and\inferrule[pi]
+  {\Gamma;\sigma\vdash T\Rightarrow\mathcal{U}_{l_T};\tau
+  \\\Gamma,x:T;\rho\vdash U\Rightarrow\mathcal{U}_{l_U};\sigma}
+  {\Gamma;\rho\vdash(x:T)\to U\Rightarrow\mathcal{U}_{l_T\lor l_U};\tau}
+\and\inferrule[abs-0]
+  {\Gamma;\sigma\vdash T\Leftarrow\mathcal{U};\tau
+  \\\Gamma,x:T;\rho\vdash f\Rightarrow U;\sigma}
+  {\Gamma;\rho\vdash\lambda(x:T).f\Rightarrow(x:T)\to U;\tau}
+\and\inferrule[pair]
+  {\Gamma\vdash f\Rightarrow T\\\Gamma\vdash s\Leftarrow U[x\coloneq f]}
+  {\Gamma\vdash(f,s:U)\Rightarrow(x:T)\times U}
+\and\inferrule[id]
+  {\Gamma\vdash t\Leftarrow T\\\Gamma\vdash u\Leftarrow T
+  \\\Gamma\vdash T\Rightarrow\mathcal{U}_l}
+  {\Gamma\vdash t=_T u\Rightarrow\mathcal{U}_l}
+\and\inferrule[app]
+  {\Gamma;\sigma\vdash f\;@\;t,\zeta\Rightarrow r;\sigma'}
+  {\Gamma;\sigma\vdash f t\;@\;\zeta\Rightarrow r;\sigma'}
+\and\inferrule[abs]
+  {x=t:T,\Gamma;\sigma\vdash f\;@\;\zeta\Rightarrow r;\sigma'}
+  {\Gamma;\sigma\vdash \lambda (x:T).f\;@\;t,\zeta\Rightarrow r;\sigma'}
+\end{mathpar}
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{bibliography}

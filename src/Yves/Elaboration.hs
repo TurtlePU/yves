@@ -18,12 +18,11 @@ import Control.Monad.State (MonadState, State)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.State (StateT (..))
 import Data.Bifunctor.Sum qualified as Sum
-import Data.Bool (otherwise)
 import Data.Collection (Collection (..))
 import Data.Eq (Eq (..))
 import Data.Foldable (Foldable)
 import Data.Function (($), (.))
-import Data.Functor (Functor (..), (<$>))
+import Data.Functor (Functor (..))
 import Data.Functor.Identity (Identity (..))
 import Data.Maybe (Maybe (..))
 import Data.Traversable (Traversable (..))
@@ -88,55 +87,13 @@ newtype Elab s m v a = Elab {elab :: Ctx m v -> ElabState s m v a}
 scope :: (Collection s) => YType m v -> Elab s m (In v) a -> Elab s m v a
 scope en = Elab . (. extend en) . (scopeState .) . elab
 
-data Arg m v
-  = Arg (YTerm m v)
-  | AFst
-  | ASnd
-  | AIf (YType m (In v)) (YTerm m v) (YTerm m v)
-  | AJ (YType m v) (YTerm m (In v))
-  | ARec (YType m (In v)) (YTerm m v)
-
-shift :: [Arg m v] -> [Arg m (In v)]
-shift = fmap impl
-  where
-    lift' :: YTerm m (In v) -> YTerm m (In (In v))
-    lift' = fmap (fmap In.There)
-
-    impl :: Arg m v -> Arg m (In v)
-    impl (Arg t) = Arg (Free.lift t)
-    impl AFst = AFst
-    impl ASnd = ASnd
-    impl (AIf g t e) = AIf (lift' g) (Free.lift t) (Free.lift e)
-    impl (AJ ty tm) = AJ (Free.lift ty) (lift' tm)
-    impl (ARec g s) = ARec (lift' g) (Free.lift s)
-
-type ElabResult s m v = Elab s m v (Core.YTerm v, Core.YType v)
-
 unify :: YTerm m v -> YTerm m v -> Elab s m v (YTerm m v)
 unify = Prelude.error "TODO: unification"
 
 bubble :: Core.YTerm v -> YTerm m v
 bubble = Free.teardown Var (Free.FTerm . Sum.L2)
 
-apply ::
-  -- | accumulator term
-  Core.YTerm v ->
-  -- | type of an accumulator
-  YType m v ->
-  -- | arguments to apply (rib)
-  [Arg m v] ->
-  -- | result type hint
-  Maybe (YType m v) ->
-  -- | elaborated after application
-  ElabResult s m v
-apply srcTm srcTy srcArgs res = go (bubble srcTm) srcTy srcArgs
-  where
-    go _ ty0 [] = do
-      _ <- case res of
-        Just ty1 -> unify ty0 ty1
-        Nothing -> pure ty0
-      Prelude.error "TODO: application mode end"
-    go _ _ (_ : _) = Prelude.error "TODO: application mode step"
+type ElabResult s m v = Elab s m v (Core.YTerm v, YType m v)
 
 -- | TODO: add matching capability
 match ::
@@ -147,86 +104,67 @@ match ::
   -- | resulting computation
   ElabResult s m v
 match comp Nothing = comp
-match comp ty@(Just _) = do
+match comp (Just ty) = do
   (tm', ty') <- comp
-  apply tm' (bubble ty') [] ty
+  ty'' <- unify ty ty'
+  return (tm', ty'')
 
 elaborate ::
   (Collection s, Key s ~ m, Eq v) =>
   -- | head of a term to elaborate
   YTerm m v ->
-  -- | arguments to apply (rib)
-  [Arg m v] ->
   -- | result type hint
   Maybe (YType m v) ->
   -- | elaboration result
   ElabResult s m v
 -- Inference mode
-elaborate (YTType l) [] = match $ return (Core.YTType l, Core.YTType (Level.ofType l))
-elaborate (a :~>: b) [] = match do
-  (b', Core.YTType lb) <- scope a (elaborate b [] Nothing)
-  (a', Core.YTType la) <- elaborate a [] Nothing
-  return (a' Core.:~>: b', Core.YTType (Level.ofPi la lb))
-elaborate (YTAbs a f) [] = match do
-  (f', tf) <- scope a (elaborate f [] Nothing)
-  (a', Core.YTType _) <- elaborate a [] Nothing
-  return (Core.YTAbs a' f', a' Core.:~>: tf)
-elaborate (a :*: b) [] = match do
-  (b', Core.YTType lb) <- scope a (elaborate b [] Nothing)
-  (a', Core.YTType la) <- elaborate a [] Nothing
-  return (a' Core.:*: b', Core.YTType (Level.ofSigma la lb))
-elaborate (YTPair b f s) [] = match do
-  (f', a) <- elaborate f [] Nothing
-  (s', _) <- elaborate s [] (Just (b @ f))
-  (b', Core.YTType _) <- scope (bubble a) (elaborate b [] Nothing)
-  return (Core.YTPair b' f' s', a Core.:*: b')
-elaborate YTBool [] = match $ return (Core.YTBool, Core.YTType Level.ofBool)
-elaborate (YTBValue b) [] = match $ return (Core.YTBValue b, Core.YTBool)
-elaborate (YTIdType a x y) [] = match do
-  (x', _) <- elaborate x [] (Just a)
-  (y', _) <- elaborate y [] (Just a)
-  (a', Core.YTType l) <- elaborate a [] Nothing
-  return (Core.YTIdType a' x' y', Core.YTType (Level.ofId l))
-elaborate (YTRefl a) [] = match do
-  (a', ty) <- elaborate a [] Nothing
-  return (Core.YTRefl a', Core.YTIdType ty a' a')
-elaborate (YTW a b) [] = match do
-  (b', Core.YTType lb) <- scope a (elaborate b [] Nothing)
-  (a', Core.YTType la) <- elaborate a [] Nothing
-  return (Core.YTW a' b', Core.YTType (Level.ofW la lb))
-elaborate YTTree {} [] = Prelude.error "TODO: YTTree inference"
--- Application mode propagation
-elaborate (f :@: t) args = elaborate f (Arg t : args)
-elaborate (YTFst p) args = elaborate p (AFst : args)
-elaborate (YTSnd p) args = elaborate p (ASnd : args)
-elaborate (YTIf g b t e) args = elaborate b (AIf g t e : args)
-elaborate (YTJ g e r) args = elaborate e (AJ g r : args)
-elaborate (YTRec g e s) args = elaborate e (ARec g s : args)
--- Application mode resolution
-elaborate (YTAbs a f) (Arg x : args) = \ty -> do
-  -- TODO: pass values to context as @ty@ might depend on @x@ here
-  (f', ft) <- scope a $ elaborate f (shift args) (Free.lift <$> ty)
-  (x', a') <- elaborate x [] (Just a)
-  return (Core.YTAbs a' f' Core.:@: x', ft @ x')
--- TODO: do not ignore @b@ here
-elaborate (YTPair _ f _) (AFst : args) = elaborate f args
--- TODO: do not ignore @b@ here
-elaborate (YTPair _ _ s) (ASnd : args) = elaborate s args
--- TODO: do not ignore @g@ here
-elaborate (YTBValue condition) (AIf _ t e : args)
-  | condition = elaborate t args
-  | otherwise = elaborate e args
--- TODO: do not ignore @g@ here
-elaborate (YTRefl x) (AJ _ e : args) = elaborate (e @ x) args
-elaborate YTTree {} (ARec _ _ : _) = Prelude.error "TODO: YTTree application resolution"
-elaborate (Var v) args = \ty -> do
-  ctxTy <- asks ($ v)
-  apply (Core.Var v) ctxTy args ty
+elaborate (Var v) = match do
+  ty <- asks ($ v)
+  return (Core.Var v, ty)
+elaborate (YTType l) =
+  match $
+    return (Core.YTType l, YTType (Level.ofType l))
+elaborate (a :~>: b) = match do
+  (b', YTType lb) <- scope a (elaborate b Nothing)
+  (a', YTType la) <- elaborate a Nothing
+  return (a' Core.:~>: b', YTType (Level.ofPi la lb))
+elaborate (YTAbs a f) = match do
+  (a', YTType _) <- elaborate a Nothing
+  (f', tf) <- scope a (elaborate f Nothing)
+  return (Core.YTAbs a' f', a :~>: tf)
+elaborate (_ :@: _) = Prelude.error "TODO: YTApp"
+elaborate (a :*: b) = match do
+  (a', YTType la) <- elaborate a Nothing
+  (b', YTType lb) <- scope a (elaborate b Nothing)
+  return (a' Core.:*: b', YTType (Level.ofSigma la lb))
+elaborate (YTPair b f s) = match do
+  (f', a) <- elaborate f Nothing
+  (b', YTType _) <- scope a (elaborate b Nothing)
+  (s', _) <- elaborate s (Just (b @ f))
+  return (Core.YTPair b' f' s', a :*: b)
+elaborate (YTFst _) = Prelude.error "TODO: YTFst"
+elaborate (YTSnd _) = Prelude.error "TODO: YTSnd"
+elaborate YTBool = match $ return (Core.YTBool, YTType Level.ofBool)
+elaborate (YTBValue b) = match $ return (Core.YTBValue b, YTBool)
+elaborate YTIf {} = Prelude.error "TODO: YTIf"
+elaborate (YTIdType a x y) = match do
+  (a', YTType l) <- elaborate a Nothing
+  (x', _) <- elaborate x (Just a)
+  (y', _) <- elaborate y (Just a)
+  return (Core.YTIdType a' x' y', YTType (Level.ofId l))
+elaborate (YTRefl a) = match do
+  (a', ty) <- elaborate a Nothing
+  return (Core.YTRefl a', YTIdType ty a a)
+elaborate YTJ {} = Prelude.error "TODO: YTJ"
+elaborate (YTW a b) = match do
+  (a', YTType la) <- elaborate a Nothing
+  (b', YTType lb) <- scope a (elaborate b Nothing)
+  return (Core.YTW a' b', YTType (Level.ofW la lb))
+elaborate YTTree {} = Prelude.error "TODO: YTTree inference"
+elaborate YTRec {} = Prelude.error "TODO: YTRec"
 -- Metavar solving
-elaborate MetaVar {} _ = Prelude.error "TODO: Metavar solving"
+elaborate MetaVar {} = Prelude.error "TODO: Metavar solving"
 -- Mode switch
-elaborate (tm :!: ty) args = match do
-  (tm', ty') <- elaborate tm [] (Just ty)
-  apply tm' (bubble ty') args Nothing
+elaborate (tm :!: ty) = match $ elaborate tm (Just ty)
 -- If nothing suffices, fail.
-elaborate _ _ = \_ -> Monad.fail ""
+elaborate _ = \_ -> Monad.fail ""

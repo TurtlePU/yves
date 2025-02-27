@@ -1,5 +1,12 @@
 \documentclass[manuscript,screen,review]{acmart}
-\usepackage{mathpartir}
+\settopmatter{printacmref=false} % remove when accepted
+\authorsaddresses{} % remove when accepted
+
+\usepackage{color,listings,mathpartir}
+\def\lstlanguagefiles{lstlean.tex}
+\definecolor{keywordcolor}{rgb}{0.7, 0.1, 0.1}   % red
+\definecolor{tacticcolor}{rgb}{0.0, 0.1, 0.6}    % blue
+\definecolor{symbolcolor}{rgb}{0.0, 0.1, 0.6}    % blue
 
 \acmConference[ICFP'25]
   {International Conference on Functional Programming}
@@ -7,158 +14,270 @@
 
 \begin{document}
 
-\title{Bidirectional Typing for Internal Solvers Using Term Reconstruction}
+\title{Functional Pearl: DIY Elaborator for Internal Solvers
+  Using Time Travel, Transformers, Free Scoped Monads and Term Reconstruction}
 
-\begin{abstract}
-  In this talk, we present a minimal lambda calculus with dependent types and
-  bidirectional type checking which would allow internal implementation of
-  SMT solvers, without external script languages or metaprogramming features.
-  For demonstration, we implement a solver for an equational theory of monoids.
-\end{abstract}
-
-\keywords{dependent types, bidirectional typing, partial inversion}
+%\begin{abstract}
+%  In this talk, we present a minimal lambda calculus with dependent types and
+%  bidirectional type checking which would allow internal implementation of
+%  SMT solvers, without external script languages or metaprogramming features.
+%  For demonstration, we implement a solver for an equational theory of monoids.
+%\end{abstract}
+%
+%\keywords{dependent types, bidirectional typing, partial inversion}
 
 \maketitle
 
-\section{Introduction}
+\section{Introduction} \label{intro}
 
 Being able to formally verify a complex mathematical theorem or to prove that a
-critical piece of software runs correctly is always a delight. However, the work
-on such a task almost certainly would require to prove lots of technical lemmas
-which are nigh trivial for a human mind but which computer might struggle to
-solve automatically. To overcome this, either some kind of proof search is run
-or specific solvers of decidable theories are employed. Here we focus on solvers
-of the second kind; they are usually implemented either outside of the prover
-(Coq \cite{coq}, Arend \cite{arend}) or inside but still require metaprogramming
-features to work properly (Lean \cite{lean}, Agda \cite{agda}). However, it
-would be much better if solvers could be written internally and without extra
-machinery to allow for faster adoption of such solvers, their observability and
-verifyability. Turns out that this is possible via smart application of
-automatic function inversion and unification algorithms inside general
-bidirectional typing discipline.
+critical piece of software runs correctly is always a delight. Due to the formal
+nature of the task, however, this requires lots of technical lemmas to be
+proven, which are nigh trivial for a human mind but which computer might
+struggle to solve automatically. Consider the following lemma from Lean's
+\texttt{mathlib4} (in \texttt{Algebra.Group.Basic}):
 
-\section{Sketch of a solver}
+\begin{lstlisting}[language=Lean]
+variable [CommSemigroup G]
+theorem mul_right_comm (a b c : G) : a * b * c = a * c * b := by
+  rw [mul_assoc, mul_comm b, mul_assoc]
+\end{lstlisting}
 
-Basic calculus is Martin-L\"of type theory with universes \cite{mltt}, a typed
-lambda-calculus which can be viewed as a terse notation for proofs in
-higher-order intuitionistic logic. MLTT includes \textbf{types} for formal
-description of mathematical structures (which can be viewed as sets under
-set-theoretical semantics) and \textbf{terms} which describe constructions of
-type inhabitants (under set-theoretical semantics, terms correspond to elements
-of said sets). As a logical system, MLTT is a system of natural deduction with
-rules for type formation ($\Gamma \vdash \tau \; \mathrm{type}$), term
-introduction and term elimination ($\Gamma \vdash t : \tau$), type equality
-($\Gamma \vdash \sigma \equiv \tau$), term equality
-($\Gamma \vdash t \equiv u : \tau$) and context well-formedness
-($\vdash \Gamma \; \mathrm{context}$). Most notably, MLTT includes rules
-necessary for declaration of inductive types (interpreted as well-founded sets),
-e.g. types of a) natural numbers; b) initial segments of natural number line
-$\underline{n}$; c) expressions in an algebraic signature with variables ranging
-over any given type. In addition, it contains a special mechanism to treat types
-as elements of special types $U_i$ called ``universes'' which we do not cover
-in this section. On the other hand, MLTT can be viewed as a total functional
-programming language which allows writing down functional algorithms AND prove
-their correctness in the same language. All this machinery allows us to write
-down a general schema of an internal solver for some decidable theory:
+This code snippet states and proves that, in any commutative semigroup $G$,
+given three elements $a, b, c \in G$, it is true that $a\cdot b\cdot c
+=a\cdot c\cdot b$. To mathematically educated person, the correctness of the
+lemma itself is obvious; however, the one who wrote the proof needed three steps
+of rewriting the type (by associativity of multiplication, by commutativity and
+then by associativity again) to convince the typechecker.
 
+It would surely be nice to avoid this chore! To aid us all, proof assistant
+designers usually provide the means to automate the generation of proofs for
+trivial lemmata. One viable approach is to use SMT solvers which, given a
+statement formulated in one of the more restricted logical theories, decide
+whether the statement is true and output the proof. Usually, such solvers are
+written in another programming language or use metaprogramming facilities.
+
+In this paper, we contribute in the following ways:
 \begin{itemize}
-  \item Let $F : (n : \mathbb{N}) \to \mathbf{type}$ be a dependent type of
-    formulas in a language of a theory with variables taken from
-    $\underline{n}$;
-  \item Let $\mathcal{M}$ be a type of all models of a theory;
-  \item Let $P$ be an embedding function which interprets formulas of a theory
-    as internal propositions of MLTT:
-    \[
-      P : (n : \mathbb{N}) \to (M : \mathcal{M})
-          \to (\mathcal{C} : \underline{n} \to M) \to F\;n \to \mathbf{prop};
-    \]
-  \item Then, an \textit{internal proof} $\mathrm{Prf}$ of a formula $\phi$ is a
-    proof that it holds universally, over all models and interpretations:
-    \[
-      \mathrm{Prf}(n:\mathbb{N})(\phi:F\;n)\coloneq
-      (M:\mathcal{M})\to(\mathcal{C}:\underline{n}\to M)
-      \to P\;n\;M\;\mathcal{C}\;\phi
-    \]
-  \item Let $\mathcal{D}$ be a decision function which, in fact, expresses the
-    logic of a solver inside MLTT:
-    \[
-      \mathcal{D} : (n : \mathbb{N}) \to (\phi : F\;n) \to
-      (\mathrm{Prf}\;n\;\phi\lor(\mathrm{Prf}\;n\;\phi\to\bot));
-    \]
-  \item Then, we would like to define a ``wrapper'' of a type
-    \[
-      (n : \mathbb{N}) \to (\phi : F n) \to (\pi : \mathrm{Prf} \; n \; \phi)
-          \to (M : \mathcal{M}) \to (\mathcal{C} : \underline{n} \to M)
-          \to (\mathcal{D} \; n \; \phi = \mathrm{inl} \; \pi)
-          \to P \; n \; M \; \mathcal{C} \; \phi.
-    \]
-    The type of a wrapper is constructed in such a way that arguments can be
-    provided to it iff the decision function states that a formula is, in fact,
-    valid.
+  \item In Section \ref{solver} we sketch a technique which enables a user of a
+    proof assistant to write solvers for decidable theories inside proof
+    assistant and immediately use them in this same system without any macros.
+  \item To back up our claims, in Section \ref{typing} we describe a suitable
+    minimal type system and in Section \ref{impl} we provide a proof-of-concept
+    elaboration algorithm written in Haskell.
+  \item By composing well-known solutions from pure functional programming world
+    and making use of Haskell's laziness, in Section \ref{impl} we arrive at the
+    description of an elaboration algorithm as a single-pass AST traversal.
 \end{itemize}
 
-In order for this framework to be practical, however, we have to solve two
-problems:
+\section{Sketch of a solver} \label{solver}
 
+Essentially, our technique relies on two tricks:
 \begin{enumerate}
-  \item A typing relation $\Gamma \vdash t : \tau$ has to be decidable;
-  \item All of the wrapper's arguments (except, maybe, for $\mathcal{C}$)
-    have to be inferrable from resulting type.
+  \item Choosing a nice type for a solver function written in a prover language;
+  \item Structuring typing rules in such a way so that most of the arguments to
+    said function can be inferred (this task is explored in more detail in
+    Section \ref{typing}).
 \end{enumerate}
 
-To this end, we develop a special bidirectional typing system \cite{bidir} for
-Martin-L\"of type theory with implicit arguments. Inference of arguments is
-achieved via function inversion as in $\mathrm{Haskell}^{-1}$ \cite{haskell}
-(here, we invert $P$ to infer $\phi$) and via unification algorithm embedded in
-the typing relations (here, we unify $\mathcal{D} \; n \; \phi$ with
-$\mathrm{inl} \; \pi$). Note that this gives rise to general inference system
-which might have wider applications.
+The task seems circular: we need to specify the type for a solver function, so
+we need to fix the type system; but to specify typing rules, we need to know the
+type of the solver to design against. Lucky for us, the type of a solver is
+expressible in any type system featuring the following:
 
-\section{The most important inference rules}
+\begin{enumerate}
+  \item The empty type $\bot$;
+  \item The disjoint union (or a sum type) $A+B$;
+  \item The type of dependent functions $(x:A)\to B(x)$ (in the case where $B$
+    does not depend on $x$, we write $A\to B$);
+  \item The type of dependent pairs $(x:A)\times B(x)$ (in the case where $B$
+    does not depend on $x$, we write $A\times B$);
+  \item Ability to form inductive datatypes, including but not limited to:
+    \begin{itemize}
+      \item The type of natural numbers $\mathbb{N}$;
+      \item For each $n:\mathbb{N}$, the type of natural numbers less than $n$,
+        denoted $\underline{n}$.
+    \end{itemize}
+  \item The type of propositions $\mathbf{prop}$;
+  \item The type of small types $\mathbf{type}$;
+  \item The propositional equality type $a=_A b$.
+\end{enumerate}
 
-\begin{mathpar}
-\inferrule[app]
-  {\Gamma\vdash f\;\$\;t,\Delta:T}
-  {\Gamma\vdash f\;t\;\$\;\Delta:T}
-\and\inferrule[var]
-  {x:U\in\Gamma\\\Gamma\vdash U\;@\;\Delta:T}
-  {\Gamma\vdash x\;\$\;\Delta:T}
-\and\inferrule[@-pi]
-  {\Gamma;\sigma\vdash t\Leftarrow T;\tau
-  \\\Gamma;\rho\vdash U[x\coloneq t]\;@\;\Delta:V;\sigma}
-  {\Gamma;\rho\vdash(x:T)\to U\;@\;t,\Delta:V;\tau}
-\and\inferrule[@-check]
-  {\Gamma\vdash T=U\Leftarrow\mathcal{U}}
-  {\Gamma\vdash T\;@\;\cdot\Leftarrow U}
-\and\inferrule[@-infer]{ }{\Gamma\vdash T\;@\;\cdot\Rightarrow T}
-\end{mathpar}
+As an example, let's consider the construction of a solver type for equational
+theory of commutative (multiplicative) semigroups, that is, a theory where:
+\begin{itemize}
+  \item We can ask questions about equalities of finite expressions written
+    using infix multiplication $(\cdot)$ and finite number of variables
+    $x_1,\ldots,x_n$.
+  \item Two expressions are considered equal if we can get one from another
+    applying a finite sequence of rewrites of two kinds:
+    $a\cdot(b\cdot c) = (a\cdot b)\cdot c$ and $a\cdot b=b\cdot a$.
+\end{itemize}
 
-\section{All elaboration rules}
+From user's point of view, such solvers are directly applicable to automatically
+prove statements as the one used in the example from Section \ref{intro},
+$(a\cdot b)\cdot c = (a\cdot c)\cdot b$.
 
-\begin{mathpar}
-\inferrule[type]{ }{\Gamma\vdash\mathcal{U}_l\Rightarrow\mathcal{U}_{l+1}}
-\and\inferrule[pi]
-  {\Gamma;\sigma\vdash T\Rightarrow\mathcal{U}_{l_T};\tau
-  \\\Gamma,x:T;\rho\vdash U\Rightarrow\mathcal{U}_{l_U};\sigma}
-  {\Gamma;\rho\vdash(x:T)\to U\Rightarrow\mathcal{U}_{l_T\lor l_U};\tau}
-\and\inferrule[abs-0]
-  {\Gamma;\sigma\vdash T\Leftarrow\mathcal{U};\tau
-  \\\Gamma,x:T;\rho\vdash f\Rightarrow U;\sigma}
-  {\Gamma;\rho\vdash\lambda(x:T).f\Rightarrow(x:T)\to U;\tau}
-\and\inferrule[pair]
-  {\Gamma\vdash f\Rightarrow T\\\Gamma\vdash s\Leftarrow U[x\coloneq f]}
-  {\Gamma\vdash(f,s:U)\Rightarrow(x:T)\times U}
-\and\inferrule[id]
-  {\Gamma\vdash t\Leftarrow T\\\Gamma\vdash u\Leftarrow T
-  \\\Gamma\vdash T\Rightarrow\mathcal{U}_l}
-  {\Gamma\vdash t=_T u\Rightarrow\mathcal{U}_l}
-\and\inferrule[app]
-  {\Gamma;\sigma\vdash f\;@\;t,\zeta\Rightarrow r;\sigma'}
-  {\Gamma;\sigma\vdash f t\;@\;\zeta\Rightarrow r;\sigma'}
-\and\inferrule[abs]
-  {x=t:T,\Gamma;\sigma\vdash f\;@\;\zeta\Rightarrow r;\sigma'}
-  {\Gamma;\sigma\vdash \lambda (x:T).f\;@\;t,\zeta\Rightarrow r;\sigma'}
-\end{mathpar}
+Then, in a type system having features outlined above, the following terms can
+be defined:
+
+\begin{enumerate}
+  \item A type of \textit{expressions} $E:(n:\mathbb{N})\to\mathbf{type}$ in our
+    theory is a type of binary trees where nodes denote multiplication and
+    leaves store variable indices taken from $\underline{n}$;
+  \item A \textit{formula} $F$ with $n$ variables is a pair of expressions
+    (left-hand side of an equation, right-hand side):
+    \[F(n:\mathbb{N})\coloneq(E\;n)\times(E\;n);\]
+  \item A \textit{model} $\mathcal{M}$ with carrier $X$ is a dictionary of
+    functions and properties which turn a type $X$ into a semigroup:
+    \[\mathcal{M}(X:\mathbf{type})
+      \coloneq((\cdot):X\to X\to X)
+      \times((a\;b\;c:X)\to a\cdot(b\cdot c)=(a\cdot b)\cdot c)
+      \times((a\;b:X)\to a\cdot b=b\cdot a);\]
+  \item An \textit{embedding function} $P$ which interprets formulas of a theory
+    as internal propositions:
+    \[
+      P:(n:\mathbb{N})\to(X:\mathbf{type})\to(M:\mathcal{M}\;X)
+      \to(\mathcal{C}:\underline{n}\to X)\to F\;n\to\mathbf{prop};
+    \]
+  \item An \textit{internal proof} $\mathrm{Prf}$ of a formula $\phi$ is a proof
+    that it holds universally, over all models and interpretations:
+    \[
+      \mathrm{Prf}(n:\mathbb{N})(\phi:F\;n)\coloneq
+      (X:\mathbf{type})\to(M:\mathcal{M}\;X)\to(\mathcal{C}:\underline{n}\to X)
+      \to P\;n\;X\;M\;\mathcal{C}\;\phi
+    \]
+  \item A \textit{decision function} $\mathcal{D}$ which, in fact, expresses the
+    logic of a solver -- here it's enough to compare ``normal forms'' of two
+    expressions by counting number of occurences of each variable in each
+    expression:
+    \[
+      \mathcal{D}:(n:\mathbb{N})\to(\phi:F\;n)\to
+      (\mathrm{Prf}\;n\;\phi+(\mathrm{Prf}\;n\;\phi\to\bot));
+    \]
+  \item Finally, we would like to define the following ``wrapper''
+    \begin{multline*}
+      \mathbf{solver}:(n:\mathbb{N})\to(\phi:F\;n)
+      \to(\pi:\mathrm{Prf}\;n\;\phi)
+      \to(\mathrm{eq}:\mathcal{D}\;n\;\phi=_{\ldots}\mathrm{inl}\;\pi)
+      \to\\\to(X:\mathbf{type})\to(M:\mathcal{M}\;X)
+      \to(\mathcal{C}:\underline{n}\to X)
+      \to P\;n\;X\;M\;\mathcal{C}\;\phi.
+    \end{multline*}
+    The result of this function can be computed as simply as
+    $\pi\;X\;M\;\mathcal{C}$; the secret sauce is the type. It is constructed in
+    such a way that arguments can be provided to the $\mathbf{solver}$ iff
+    $\mathcal{D}$ states that a formula is, in fact, provable.
+\end{enumerate}
+
+In order for this framework to be practical, however, all of the wrapper's
+arguments (except, maybe, for $\mathrm{eq}$, $M$ and $\mathcal{C}$) have to be
+inferrable from resulting type. For example, lemma from Section \ref{intro}
+would then be provable as simply as
+\[
+  \mathbf{solver}\;\_\;\_\;\_\;(\mathrm{refl}\;\_\;\_)\;\_\;M\;[a,b,c]
+  :a\cdot b\cdot c=_{\_}a\cdot c\cdot b,
+\]
+where $\mathrm{refl}\;A\;x:x=_A x$, underscores denote terms which should be
+inferred by the typechecker and $[x_1,\ldots,x_n]$ is a shorthand for a function
+from $\underline{n}$ to $X$ mapping $i$ to $x_i$. For ease of presentation, we
+refrain from adding further niceties to the surface syntax (such as implicit
+arguments and instance resolution), but they of course should be present in any
+practical system.
+
+%To this end, we develop a special bidirectional typing system \cite{bidir} for
+%Martin-L\"of type theory with implicit arguments. Inference of arguments is
+%achieved via function inversion as in $\mathrm{Haskell}^{-1}$ \cite{haskell}
+%(here, we invert $P$ to infer $\phi$) and via unification algorithm embedded in
+%the typing relations (here, we unify $\mathcal{D} \; n \; \phi$ with
+%$\mathrm{inl} \; \pi$). Note that this gives rise to general inference system
+%which might have wider applications.
+
+\section{Typing rules} \label{typing}
+%Basic calculus is Martin-L\"of type theory with universes \cite{mltt}, a typed
+%lambda-calculus which can be viewed as a terse notation for proofs in
+%higher-order intuitionistic logic. MLTT includes \textbf{types} for formal
+%description of mathematical structures (which can be viewed as sets under
+%set-theoretical semantics) and \textbf{terms} which describe constructions of
+%type inhabitants (under set-theoretical semantics, terms correspond to elements
+%of said sets). As a logical system, MLTT is a system of natural deduction with
+%rules for type formation ($\Gamma \vdash \tau \; \mathrm{type}$), term
+%introduction and term elimination ($\Gamma \vdash t : \tau$), type equality
+%($\Gamma \vdash \sigma \equiv \tau$), term equality
+%($\Gamma \vdash t \equiv u : \tau$) and context well-formedness
+%($\vdash \Gamma \; \mathrm{context}$). Most notably, MLTT includes rules
+%necessary for declaration of inductive types (interpreted as well-founded sets),
+%e.g. types of a) natural numbers; b) initial segments of natural number line
+%$\underline{n}$; c) expressions in an algebraic signature with variables ranging
+%over any given type. In addition, it contains a special mechanism to treat types
+%as elements of special types $U_i$ called ``universes'' which we do not cover
+%in this section. On the other hand, MLTT can be viewed as a total functional
+%programming language which allows writing down functional algorithms AND prove
+%their correctness in the same language. All this machinery allows us to write
+%down a general schema of an internal solver for some decidable theory:
+
+
+
+%\begin{mathpar}
+%\inferrule[app]
+%  {\Gamma\vdash f\;\$\;t,\Delta:T}
+%  {\Gamma\vdash f\;t\;\$\;\Delta:T}
+%\and\inferrule[var]
+%  {x:U\in\Gamma\\\Gamma\vdash U\;@\;\Delta:T}
+%  {\Gamma\vdash x\;\$\;\Delta:T}
+%\and\inferrule[@-pi]
+%  {\Gamma;\sigma\vdash t\Leftarrow T;\tau
+%  \\\Gamma;\rho\vdash U[x\coloneq t]\;@\;\Delta:V;\sigma}
+%  {\Gamma;\rho\vdash(x:T)\to U\;@\;t,\Delta:V;\tau}
+%\and\inferrule[@-check]
+%  {\Gamma\vdash T=U\Leftarrow\mathcal{U}}
+%  {\Gamma\vdash T\;@\;\cdot\Leftarrow U}
+%\and\inferrule[@-infer]{ }{\Gamma\vdash T\;@\;\cdot\Rightarrow T}
+%\end{mathpar}
+
+%\section{All elaboration rules}
+
+%\begin{mathpar}
+%\inferrule[type]{ }{\Gamma\vdash\mathcal{U}_l\Rightarrow\mathcal{U}_{l+1}}
+%\and\inferrule[pi]
+%  {\Gamma;\sigma\vdash T\Rightarrow\mathcal{U}_{l_T};\tau
+%  \\\Gamma,x:T;\rho\vdash U\Rightarrow\mathcal{U}_{l_U};\sigma}
+%  {\Gamma;\rho\vdash(x:T)\to U\Rightarrow\mathcal{U}_{l_T\lor l_U};\tau}
+%\and\inferrule[abs-0]
+%  {\Gamma;\sigma\vdash T\Leftarrow\mathcal{U};\tau
+%  \\\Gamma,x:T;\rho\vdash f\Rightarrow U;\sigma}
+%  {\Gamma;\rho\vdash\lambda(x:T).f\Rightarrow(x:T)\to U;\tau}
+%\and\inferrule[pair]
+%  {\Gamma\vdash f\Rightarrow T\\\Gamma\vdash s\Leftarrow U[x\coloneq f]}
+%  {\Gamma\vdash(f,s:U)\Rightarrow(x:T)\times U}
+%\and\inferrule[id]
+%  {\Gamma\vdash t\Leftarrow T\\\Gamma\vdash u\Leftarrow T
+%  \\\Gamma\vdash T\Rightarrow\mathcal{U}_l}
+%  {\Gamma\vdash t=_T u\Rightarrow\mathcal{U}_l}
+%\and\inferrule[app]
+%  {\Gamma;\sigma\vdash f\;@\;t,\zeta\Rightarrow r;\sigma'}
+%  {\Gamma;\sigma\vdash f t\;@\;\zeta\Rightarrow r;\sigma'}
+%\and\inferrule[abs]
+%  {x=t:T,\Gamma;\sigma\vdash f\;@\;\zeta\Rightarrow r;\sigma'}
+%  {\Gamma;\sigma\vdash \lambda (x:T).f\;@\;t,\zeta\Rightarrow r;\sigma'}
+%\end{mathpar}
+
+\section{Implementation} \label{impl}
+
+\section{Related work}
+
+%We wish to provide an alternate point of view on solvers of the second kind:
+%they are usually implemented either in supporting programming language (e.g.
+%OCaml for Rocq \cite{coq}, Java for Arend \cite{arend}) or in the language of
+%prover itself via metaprogramming facilities (e.g. how it's done in Lean
+%\cite{lean} and Agda \cite{agda}).
+%We believe our approach is beneficial in three ways:
+%\begin{itemize}
+%  \item Such solvers are correct by construction thanks to the prover;
+%  \item Newcomers can explore solver implementation without having to learn
+%    other languages;
+%  \item Implementation of the prover becomes smaller and easier to audit.
+%\end{itemize}
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{bibliography}
